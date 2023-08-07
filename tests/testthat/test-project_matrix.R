@@ -1,5 +1,6 @@
 test_that("projected matrix is invariant by example_perm", {
-  S <- matrix(rnorm(36), ncol = 6)
+  S <- matrix(rnorm(6 * 6), ncol = 6)
+  S <- S %*% t(S)
   gips_example_perm <- gips_perm(example_perm, 6)
 
   projected <- project_matrix(S, gips_example_perm)
@@ -37,8 +38,46 @@ test_that("project_matrix gives errors", {
   gips_example_perm <- gips_perm(example_perm, 6)
 
   expect_error(project_matrix(7, gips_example_perm))
-  expect_error(project_matrix(matrix(rnorm(30), ncol = 6), gips_example_perm))
-  expect_error(project_matrix(matrix(rnorm(25), ncol = 5), gips_example_perm))
+  expect_error(project_matrix(matrix(rnorm(5 * 6), ncol = 6), gips_example_perm))
+  S <- matrix(rnorm(5 * 5), ncol = 5)
+  S <- S %*% t(S)
+  expect_error(project_matrix(S, gips_example_perm))
+
+  expect_warning(project_matrix(matrix(rnorm(36), nrow = 6), gips_example_perm),
+    class = "not_positive_semi_definite_matrix"
+  )
+})
+
+test_that("project_matrix can get gips as per", {
+  p <- 6
+  my_perm <- "(14)(23)"
+  number_of_observations <- 10
+  X <- matrix(rnorm(p * number_of_observations), number_of_observations, p)
+  S <- cov(X)
+  projected_S <- project_matrix(S, perm = my_perm)
+
+  g <- gips(S, number_of_observations, perm = my_perm)
+  g_MAP <- find_MAP(g, max_iter = 10, show_progress_bar = FALSE, optimizer = "Metropolis_Hastings")
+
+  S_MAP1 <- project_matrix(attr(g, "S"), perm = g_MAP[[1]])               # gips_perm class
+  S_MAP2 <- project_matrix(attr(g, "S"), perm = g_MAP)                    # gips class
+  S_MAP3 <- project_matrix(attr(g, "S"), perm = as.character(g_MAP[[1]])) # character
+
+  expect_equal(S_MAP1, S_MAP2)
+  expect_equal(S_MAP1, S_MAP3)
+})
+
+test_that("project_matrix does not forget colnames or rownames", {
+  p <- 9
+  S <- matrix(rnorm(p * p), nrow = p)
+  S <- S %*% t(S)
+  rownames(S) <- LETTERS[1:p]
+  colnames(S) <- LETTERS[1:p]
+
+  S_proj <- project_matrix(S, "(123)")
+
+  expect_equal(rownames(S_proj), rownames(S))
+  expect_equal(colnames(S_proj), colnames(S))
 })
 
 test_that("get_equal_indices_by_perm works for example_perm", {
@@ -67,11 +106,12 @@ test_that("get_equal_indices_by_perm works for identity", {
 })
 
 test_that("get_single_from_double_indices works", {
-  full_double_indices <- matrix(c(
-    rep(1:4, times = 4),
-    rep(1:4, each = 4)
-  ),
-  ncol = 2
+  full_double_indices <- matrix(
+    c(
+      rep(1:4, times = 4),
+      rep(1:4, each = 4)
+    ),
+    ncol = 2
   )
 
   expect_equal(
@@ -88,11 +128,12 @@ test_that("get_single_from_double_indices works for 0 input", {
 })
 
 test_that("get_double_from_single_indices works", {
-  full_double_indices <- matrix(c(
-    rep(1:4, times = 4),
-    rep(1:4, each = 4)
-  ),
-  ncol = 2
+  full_double_indices <- matrix(
+    c(
+      rep(1:4, times = 4),
+      rep(1:4, each = 4)
+    ),
+    ncol = 2
   )
 
   expect_equal(

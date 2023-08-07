@@ -2,19 +2,17 @@
 #'
 #' It calculates the value of the integral defined in
 #' [Definition 11 from references](https://arxiv.org/abs/2004.03503).
-#' It is implementation of the
+#' It implements
 #' [Theorem 8 from references](https://arxiv.org/abs/2004.03503)
-#' and is using the
+#' and uses the
 #' [formula (19) from references](https://arxiv.org/abs/2004.03503).
 #'
 #' @inheritParams get_structure_constants
 #' @param lambda A positive real number.
 #'
-#' @export
-#'
 #' @returns Returns the value of the Gamma function of the colored cone
-#'     (for definition of colored cone see **Basic definitions** section in
-#'     `vignette("Theory", package = "gips")` or in its
+#'     (for definition of colored cone, see the **Basic definitions** section
+#'     in `vignette("Theory", package = "gips")` or in its
 #'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)).
 #'
 #' @references Piotr Graczyk, Hideyuki Ishi, Bartosz Kołodziejek, Hélène Massam.
@@ -25,24 +23,27 @@
 #'
 #' @seealso
 #' * [get_structure_constants()] - The function useful inside
-#'     the `calculate_gamma_function()` function.
+#'     the `calculate_gamma_function()`.
 #' * [log_posteriori_of_gips()] - The function that uses
-#'     the values of the gamma function calculable
-#'     with `calculate_gamma_function()`.
+#'     the values of the gamma function.
 #' * `vignette("Theory", package = "gips")` or its
-#'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html) - 
+#'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html) -
 #'     A place to learn more about
 #'     the math behind the `gips` package.
 #'
 #' @examples
-#' id_perm <- gips_perm(permutations::id, 2)
+#' id_perm <- gips_perm("()", 2)
 #' calculate_gamma_function(id_perm, 0.5001) # 10.7...
 #' calculate_gamma_function(id_perm, 0.50000001) # 19.9...
 #' calculate_gamma_function(id_perm, 0.500000000001) # 29.1...
-#' \donttest{
-#' try(calculate_gamma_function(id_perm, 0.5))
-#' # Error, integral diverges; returns Inf and warning
-#' }
+#'
+#' oldw <- getOption("warn")
+#' options(warn = -1)
+#' calculate_gamma_function(id_perm, 0.5) # Inf
+#' # Integral diverges; returns Inf and warning
+#' options(warn = oldw)
+#'
+#' @export
 calculate_gamma_function <- function(perm, lambda) {
   constants <- get_structure_constants(perm)
   r <- constants[["r"]]
@@ -109,7 +110,9 @@ calculate_gamma_omega <- function(lambda, dim_omega_i, r_i, d_i) {
 
 #' G_function for `log_posteriori_of_gips()`
 #'
-#' @param delta Parameter of a method.
+#' @param delta Parameter of a method. Default is `3`.
+#'     When `structure_constants` are from a id permutation, `delta <= 0` iff `G_function() = +Inf`.
+#'     When `structure_constants` are from a permutation that is not id, `delta <= 1` iff `G_function() = +Inf`.
 #' @param structure_constants Constants from `get_structure_constants` function.
 #'
 #' @returns Sum of logarithms of elements of `calculate_gamma_omega` from i to L.
@@ -118,8 +121,8 @@ calculate_gamma_omega <- function(lambda, dim_omega_i, r_i, d_i) {
 #' @examples
 #' perm_size <- 6
 #' perm <- permutations::as.cycle(permutations::as.word(c(2, 3, 1, 5, 4, 6)))
-#' gips_perm <- gips_perm(perm, perm_size)
-#' structure_constants <- get_structure_constants(gips_perm)
+#' my_gips_perm <- gips_perm(perm, perm_size)
+#' structure_constants <- get_structure_constants(my_gips_perm)
 #' gips:::G_function(structure_constants, 3)
 #'
 #' @noRd

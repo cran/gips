@@ -1,12 +1,14 @@
 #' Get Structure Constants
 #'
-#' Finds constants that are necessary for internal calculations of integrals and
+#' Finds constants necessary for internal calculations of integrals and
 #' eventually the posteriori probability in [log_posteriori_of_gips()].
 #'
-#' Uses the [Theorem 5 from references](https://arxiv.org/abs/2004.03503)
+#' Uses [Theorem 5 from references](https://arxiv.org/abs/2004.03503)
 #' to calculate the constants.
 #'
 #' @param perm An object of a `gips_perm` class.
+#'     It can also be of a `gips` class, but
+#'     it will be interpreted as the underlying `gips_perm`.
 #'
 #' @returns Returns a list of 5 items:
 #'     `r`, `d`, `k`, `L`, `dim_omega` - vectors of constants from
@@ -26,19 +28,33 @@
 #'     that rely heavily on `get_structure_constants()`.
 #'
 #' @examples
-#' perm <- gips_perm(permutations::as.word(c(1, 2, 3, 5, 4)), 5)
+#' perm <- gips_perm("(1)(2)(3)(4,5)", 5)
 #' get_structure_constants(perm)
 get_structure_constants <- function(perm) {
+  if (inherits(perm, "gips")) {
+    validate_gips(perm)
+    perm <- perm[[1]]
+  }
+  if (!(inherits(perm, "gips_perm"))) {
+    wrong_argument_abort(
+      i = "`perm` must be of a `gips_perm` class.",
+      x = paste0(
+        "You provided `perm` with `class(perm) == (",
+        paste(class(perm), collapse = ", "), ")`."
+      )
+    )
+  }
+
   perm_size <- attr(perm, "size")
   l <- get_cycle_representatives_and_lengths(perm)
   representatives <- l[["representatives"]]
-  cycle_lenghts <- l[["cycle_lengths"]]
-  perm_order <- ifelse(length(cycle_lenghts) >= 2,
-    numbers::mLCM(cycle_lenghts),
-    cycle_lenghts
+  cycle_lengths <- l[["cycle_lengths"]]
+  perm_order <- ifelse(length(cycle_lengths) >= 2,
+    numbers::mLCM(cycle_lengths),
+    cycle_lengths
   )
 
-  r <- calculate_r(cycle_lenghts, perm_order)
+  r <- calculate_r(cycle_lengths, perm_order)
   d <- calculate_d(perm_order)
 
   L <- sum(r > 0)
@@ -91,7 +107,7 @@ calculate_r <- function(cycle_lengths, perm_order) {
   # AKA a*p_c %% N == 0
 
   # Corollary: N %% p_c == 0 for each p_c, cause N is LCM of all p_c
-  multiples <- perm_order / cycle_lengths
+  multiples <- round(perm_order / cycle_lengths) # the result of division should be an integer, but floats may interfere
 
   # Now we have to adjust for 2 cases:
   # 1) some alphas are too large
@@ -104,7 +120,7 @@ calculate_r <- function(cycle_lengths, perm_order) {
 
   alpha_count <- table(alphas)
   r <- rep(0, M + 1)
-  r[as.integer(names(alpha_count)) + 1] <- as.integer(alpha_count)
+  r[as.double(names(alpha_count)) + 1] <- as.double(alpha_count)
   r
 }
 

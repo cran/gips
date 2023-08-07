@@ -3,10 +3,13 @@
 #' Create permutation objects to be passed to
 #' other functions of the `gips` package.
 #'
-#' @param x An object created with a `permutations` package or any object
-#'     that can be processed with the [permutations::permutation()] function.
+#' @param x A single object that can be interpreted by
+#'     the [permutations::permutation()] function.
+#'     For example, the character of a form `"(1,2)(4,5)"`. See examples.
+#'     It can also be of a `gips` class but
+#'     it will be interpreted as the underlying `gips_perm`.
 #' @param size An integer. Size of a permutation
-#'     (AKA cardinality of a set, on which permutation is defined; see examples).
+#'     (AKA cardinality of a set, on which permutation is defined. See examples).
 #'
 #' @section Methods for a `gips` class:
 #' * [as.character.gips_perm()]
@@ -16,26 +19,45 @@
 #'     a `gips_perm` class after the safety checks.
 #'
 #' @seealso
+#' * [project_matrix()] - `gips_perm` is the `perm` parameter of `project_matrix()`.
 #' * [permutations::permutation()] - The constructor for the `x` parameter.
 #' * [gips()] - The constructor for the `gips` class uses
 #'     the `gips_perm` object as the base object.
 #'
 #' @examples
-#' gperm <- gips_perm(permutations::as.word(c(1, 2, 3, 5, 4)), 5)
-#' gperm <- gips_perm(permutations::as.cycle("(5,4)"), 5)
-#' # note the necessity of `size` parameter
-#' gperm <- gips_perm(permutations::as.cycle("(5,4)"), 7)
-#' gperm <- gips_perm("(1,2)(5,4)", 7)
+#' # All 7 following lines give the same output:
+#' gperm <- gips_perm("(12)(45)", 5)
+#' gperm <- gips_perm("(1,2)(4,5)", 5)
+#' gperm <- gips_perm(as.matrix(c(2, 1, 3, 5, 4)), 5)
+#' gperm <- gips_perm(t(as.matrix(c(2, 1, 3, 5, 4))), 5) # both way for a matrix works
+#' gperm <- gips_perm(list(list(c(2, 1), c(4, 5))), 5)
+#' gperm <- gips_perm(permutations::as.word(c(2, 1, 3, 5, 4)), 5)
+#' gperm <- gips_perm(permutations::as.cycle("(1,2)(4,5)"), 5)
 #' gperm
 #'
-#' \donttest{
-#' try(gperm <- gips_perm(permutations::as.cycle("(5,4)"), 3))
-#' # Error, `size` equals 3 while the maximum element is 5.
-#' }
+#' # note the necessity of the `size` parameter:
+#' gperm <- gips_perm("(12)(45)", 5)
+#' gperm <- gips_perm("(12)(45)", 7) # this one is a different permutation
+#'
+#' try(gperm <- gips_perm("(12)(45)", 4))
+#' # Error, `size` was set to 4, while the permutation has the element 5.
 #'
 #' @export
 gips_perm <- function(x, size) {
+  if (inherits(x, "gips")) {
+    validate_gips(x)
+    if (attr(x[[1]], "size") != size) {
+      rlang::abort(c("x" = paste0(
+        "You provided a `gips` object as the `x` parameter of `gips_perm()`, which in general is OK, but You also provided size = ",
+        size, ", which is different from attr(x[[1]], 'size') = ", attr(x[[1]], "size")
+      )))
+    }
+    return(x[[1]])
+  }
   if (!inherits(x, "permutation")) {
+    if (is.matrix(x) && dim(x)[1] != 1) {
+      x <- t(x) # matrix x has to be a row, not a column
+    }
     if (is.matrix(x) || is.character(x) || is.list(x)) {
       x <- permutations::permutation(x)
     } else {
@@ -65,7 +87,7 @@ gips_perm <- function(x, size) {
   }
   x <- permutations::as.cycle(x)
 
-  if (length(unclass(x)) > 1) {
+  if (length(unclass(x)) > 1) { # this could be checked prior to `permutations::permutation()`, but I think this will almost never be a problem
     rlang::warn(c("Passing multiple permutations to `gips_perm()` is not supported. Taking only the first one.",
       "i" = paste0("You provided ", length(unclass(x)), " permutations.")
     ))
@@ -85,7 +107,7 @@ gips_perm <- function(x, size) {
   all_ints <- unlist(cycles)
   if (size < max(all_ints)) {
     wrong_argument_abort(
-      i = "`size` attribute must be greater or equal to largest integer in elements of `x`.",
+      i = "`size` attribute must be greater or equal to the largest integer in elements of `x`.",
       x = paste0(
         "`size` equals ", size,
         " while the maximum element is ",
@@ -224,43 +246,48 @@ validate_gips_perm <- function(g) {
 #' Printing function for a `gips_perm` class.
 #'
 #' @param x An object of a `gips_perm` class.
-#' @param ... Further arguments passed to [permutations::print.cycle()].
+#' @param ... Further arguments (currently ignored).
 #'
-#' @returns Returns its argument invisibly, after printing it.
+#' @returns Returns an invisible `NULL`.
 #'
 #' @export
 #'
 #' @examples
-#' g_perm <- gips_perm(permutations::as.cycle("(5,4)"), 5)
-#' \donttest{print(g_perm)}
+#' gperm <- gips_perm("(5,4)", 5)
+#' print(gperm)
 print.gips_perm <- function(x, ...) {
   validate_gips_perm(x)
   x <- permutations::as.cycle(x)
   permutations::print.cycle(x, ...)
+
+  invisible(NULL)
 }
 
-#' Transform `gips_perm` object to character vector
+#' Transform the `gips_perm` object to a character vector
 #'
-#' Implementation of S3 method.
-#'
-#' @describeIn as.character
+#' Implementation of the S3 method.
 #'
 #' @inheritParams print.gips_perm
-#' @param ... Further arguments passed to [permutations::as.character.cycle()].
+#' @param ... Further arguments (currently ignored).
 #'
 #' @method as.character gips_perm
 #'
 #' @returns Returns an object of a `character` type.
 #'
 #' @seealso
-#' [permutations::as.character.cycle()]
+#' * [as.character.gips()] - The underlying `gips_perm` of
+#'     the `gips` object is passed to [as.character.gips_perm()].
+#' * [permutations::as.character.cycle()] - The underlying permutation of
+#'     the `gips` object is passed to [permutations::as.character.cycle()].
 #'
 #' @export
 #'
 #' @examples
-#' g_perm <- gips_perm(permutations::as.cycle("(5,4)"), 5)
+#' g_perm <- gips_perm("(5,4)", 5)
 #' as.character(g_perm)
 as.character.gips_perm <- function(x, ...) {
+  validate_gips_perm(x)
+
   as.character(permutations::as.cycle(x), ...)
 }
 

@@ -11,11 +11,11 @@ vignette: >
 knitr::opts_chunk[["set"]](
   collapse = TRUE,
   comment = "#>",
-  cache = TRUE
+  cache = FALSE
 )
 ```
 
-# Theory the `gips` is based on
+# The theory the `gips` is based on
 
 The package is based on the article [[1]](https://arxiv.org/abs/2004.03503). There the math behind the package is precisely demonstrated, and all the theorems are proven.
 
@@ -28,15 +28,20 @@ library(gips)
 As mentioned in the abstract, the outline of the paper is to "derive the distribution of the maximum likelihood estimate of the covariance parameter $\Sigma$ (...)" and then to "perform Bayesian model selection in the class of complete Gaussian models invariant by the action of a subgroup of the symmetric group (...)". Those ideas are implemented in the `gips` package.
 
 
+## Alternative reference
+
+The theory derived in [1] is for general group invariance, while in this package, we only consider invariance under cyclic groups. This allows for massive simplifications. This simplified version is comprehensibly set out in [2].
+
+
 # Basic definitions
 
-Let $V=\{1,\ldots,p\}$ be a finite index set, and for every $i\in V$, $Z^{(i)}=(Z_1^{(i)},\ldots, Z_p^{(i)})^\top$ be a multivariate random variable following a centered Gaussian model $\mathrm{N}_p(0,\Sigma)$, and let $Z^{(1)},\ldots, Z^{(n)}$ be an i.i.d. (independent and identically distributed) sample from this distribution. Name the whole sample $Z = (Z^{(1)},\ldots, Z^{(n)})$.
+Let $V=\{1,\ldots,p\}$ be a finite index set, and for every $i\in \{1, \dots, n\}$, $Z^{(i)}=(Z_1^{(i)},\ldots, Z_p^{(i)})^\top$ be a multivariate random variable following a centered Gaussian model $\mathrm{N}_p(0,\Sigma)$, and let $Z^{(1)},\ldots, Z^{(n)}$ be an i.i.d. (independent and identically distributed) sample from this distribution. Name the whole sample $Z = (Z^{(1)},\ldots, Z^{(n)})$.
 
 Let $\mathfrak{S}_p$ denote the symmetric group
 on $V$, that is, the set of all permutations on $\{1,\ldots,p\}$ with function composition as the group operation. Let $\Gamma$ be an arbitrary subgroup of $\mathfrak{S}_p$. The model $\mathrm{N}_p(0,\Sigma)$ is said to be invariant under the action of $\Gamma$ if for all $g\in \Gamma$, $g\cdot\Sigma\cdot g^\top=\Sigma$ 
 (here, we identify a permutation $g$ with its permutation matrix).
 
-For a subgroup $\Gamma \subset  \mathfrak{S}_p$, we define the colored space, i.e. the space of symmetric matrices invariant under $\Gamma$,
+For a subgroup $\Gamma \subset  \mathfrak{S}_p$, we define the colored space, i.e., the space of symmetric matrices invariant under $\Gamma$,
 $$\mathcal{Z}_{\Gamma} := \{S \in \mathrm{Sym}(p;\mathbb{R})\colon S_{i,j} = S_{\sigma(i),\sigma(j)} \text{ for all }\sigma \in \Gamma\mbox{ for all }i,j\in V\},$$
 and the colored cone of positive definite matrices valued in $\mathcal{Z}_{\Gamma}$,
 $$\mathcal{P}_{\Gamma} := \mathcal{Z}_{\Gamma} \cap \mathrm{Sym}^+(p;\mathbb{R}).$$
@@ -51,21 +56,23 @@ The exact form of blocks depends on so-called *structure constants* $(k_i,d_i,r_
 
 ```{r th1_1}
 p <- 6
-S <- matrix(c(1.1,0.9,0.8,0.7,0.8,0.9,
-              0.9,1.1,0.9,0.8,0.7,0.8,
-              0.8,0.9,1.1,0.9,0.8,0.7,
-              0.7,0.8,0.9,1.1,0.9,0.8,
-              0.8,0.7,0.8,0.9,1.1,0.9,
-              0.9,0.8,0.7,0.8,0.9,1.1), nrow = p)
+S <- matrix(c(
+  1.1, 0.9, 0.8, 0.7, 0.8, 0.9,
+  0.9, 1.1, 0.9, 0.8, 0.7, 0.8,
+  0.8, 0.9, 1.1, 0.9, 0.8, 0.7,
+  0.7, 0.8, 0.9, 1.1, 0.9, 0.8,
+  0.8, 0.7, 0.8, 0.9, 1.1, 0.9,
+  0.9, 0.8, 0.7, 0.8, 0.9, 1.1
+), nrow = p)
 ```
 
-```{r th1_2, dependson="th1_1", echo=FALSE}
+```{r th1_2, echo=FALSE}
 gips:::pretty_plot_matrix(S, title = "S matrix")
 ```
 
 `S` is a symmetric matrix invariant under the group $\Gamma = \left<(1,2,3,4,5,6)\right>$.
 
-```{r th1_3, dependson="th1_1"}
+```{r th1_3}
 g_perm <- gips_perm("(1,2,3,4,5,6)", p)
 U_Gamma <- prepare_orthogonal_matrix(g_perm)
 
@@ -73,30 +80,34 @@ block_decomposition <- t(U_Gamma) %*% S %*% U_Gamma
 round(block_decomposition, 5)
 ```
 
-```{r th1_4, dependson="th1_3", echo=FALSE}
+```{r th1_4, echo=FALSE}
 gips:::pretty_plot_block_matrix(S, g_perm, title = "block_decomposition matrix")
 ```
 
-The transformed matrix is in the block-diagonal form of [[1]](https://arxiv.org/abs/2004.03503), Theorem 1. Blank entries are off-block entries and equal to 0. The result was rounded to the 5th place after the decimal to hide the inaccuracies of floating point arithmetic.
+The transformed matrix is in the block-diagonal form of [[1]](https://arxiv.org/abs/2004.03503), Theorem 1. Blank entries are off-block entries and equal to 0. Notice that, for example, the [2,3] is not blank regardless of being 0. This is because it is a part of the block-diagonal form but happens to have a value of 0.
+
+The result was rounded to the 5th place after the decimal to hide the inaccuracies of floating point arithmetic.
 
 Let's see the other example:
 ```{r th1_5}
 p <- 6
-S <- matrix(c(1.2,0.9,0.9,0.4,0.2,0.1,
-              0.9,1.2,0.9,0.1,0.4,0.2,
-              0.9,0.9,1.2,0.2,0.1,0.4,
-              0.4,0.1,0.2,1.2,0.9,0.9,
-              0.2,0.4,0.1,0.9,1.2,0.9,
-              0.1,0.2,0.4,0.9,0.9,1.2), nrow = p)
+S <- matrix(c(
+  1.2, 0.9, 0.9, 0.4, 0.2, 0.1,
+  0.9, 1.2, 0.9, 0.1, 0.4, 0.2,
+  0.9, 0.9, 1.2, 0.2, 0.1, 0.4,
+  0.4, 0.1, 0.2, 1.2, 0.9, 0.9,
+  0.2, 0.4, 0.1, 0.9, 1.2, 0.9,
+  0.1, 0.2, 0.4, 0.9, 0.9, 1.2
+), nrow = p)
 ```
 
-```{r th1_6, dependson="th1_5", echo=FALSE}
+```{r th1_6, echo=FALSE}
 gips:::pretty_plot_matrix(S, title = "S matrix")
 ```
 
 Now, `S` is a symmetric matrix invariant under the group $\Gamma = \left<(1,2,3)(4,5,6)\right>$.
 
-```{r th1_7, dependson="th1_5"}
+```{r th1_7}
 g_perm <- gips_perm("(1,2,3)(4,5,6)", p)
 U_Gamma <- prepare_orthogonal_matrix(g_perm)
 
@@ -104,7 +115,7 @@ block_decomposition <- t(U_Gamma) %*% S %*% U_Gamma
 round(block_decomposition, 5)
 ```
 
-```{r th1_8, dependson="th1_7", echo=FALSE}
+```{r th1_8, echo=FALSE}
 gips:::pretty_plot_block_matrix(S, g_perm, title = "block_decomposition matrix")
 ```
 
@@ -126,7 +137,11 @@ So it has some identical elements.
 
 Note that for $\Gamma = \{\text{id}\} = \{(1)(2)\dots(p)\}$ we have $\pi_{\{\text{id}\}}(S) = S$.
 
-So no additional assumptions are made; thus the standard covariance estimator is the best we can do.
+So, no additional assumptions are made; thus, the standard covariance estimator is the best we can do.
+
+### Notation
+
+We will abbreviate the notation: when the $\Gamma = \left< c \right>$ is a cyclic group of a permutation $c$, we will write $\pi_{c}(S) := \pi_{\Gamma}(S) = \pi_{\left< c \right>}(S)$.
 
 
 ### Example
@@ -135,50 +150,50 @@ Let `S` be any symmetric square matrix:
 ```{r def3_0, echo=FALSE}
 p <- 6
 n <- 10
-withr::with_seed(1234,
-  code = Z <- matrix(runif(n*p, min = -10, max = 10), ncol = p)
+withr::with_seed(2022,
+  code = Z <- matrix(runif(n * p, min = -10, max = 10), ncol = p)
 )
-Z[,1] <- 2*Z[,1]
+Z[, 1] <- 2 * Z[, 1]
 S <- t(Z) %*% Z / n
 ```
 
-```{r def3_1, dependson="def3_0"}
+```{r def3_1}
 round(S, 2)
 ```
 
-```{r def3_2, dependson="def3_1", echo=FALSE}
+```{r def3_2, echo=FALSE}
 gips:::pretty_plot_matrix(S, title = "S matrix")
 ```
 
-One can project this matrix, for example, on $\Gamma = \left<(1,2)(3,4,5,6)\right>$:
+One can project this matrix, for example, on $\Gamma = \left< \text{perm} \right> = \left<(1,2)(3,4,5,6)\right>$:
 
-```{r def3_3, dependson="def3_2"}
+```{r def3_3}
 S_projected <- project_matrix(S, perm = "(1,2)(3,4,5,6)")
 round(S_projected, 2)
 ```
 
-```{r def3_4, dependson="def3_3", echo=FALSE}
+```{r def3_4, echo=FALSE}
 gips:::pretty_plot_matrix(S_projected, title = "S_projected matrix")
 ```
 
-Notice in the `S_projected` matrix, there are identical elements according to the equation from the beginning of this section. For example, `S_projected[1,1] = S_projected[2,2]`.
+Notice in the `S_projected` matrix there are identical elements according to the equation from the beginning of this section. For example, `S_projected[1,1] = S_projected[2,2]`.
 
 ## $C_\sigma$ and `n0`
 It is a well-known fact that without additional assumptions, the Maximum Likelihood Estimator (MLE) of the covariance matrix in the Gaussian model exists if and only if $n \ge p$. However, if the additional assumption is added as the covariance matrix is invariant under permutation $\sigma$, then the sample size $n$
 required for the MLE to exist is lower than $p$. It is equal to the number of cycles, denoted hereafter by $C_\sigma$.
 
-For example, if the permutation $\sigma = (1,2,3,4,5,6)$ is discovered by the `find_MAP()` function, then there is a single cycle in it $C_\sigma = 1$. Therefore a single observation would be enough to estimate a covariance matrix with `project_matrix()`. If the permutation $\sigma = (1,2)(3,4,5,6)$ is discovered, then $C_\sigma = 2$ and so 2 observations would be enough.
+For example, if the permutation $\sigma = (1,2,3,4,5,6)$ is discovered by the `find_MAP()` function, then there is a single cycle in it $C_\sigma = 1$. Therefore a single observation would be enough to estimate a covariance matrix with `project_matrix()`. If the permutation $\sigma = (1,2)(3,4,5,6)$ is discovered, then $C_\sigma = 2$, and so 2 observations would be enough.
 
 To get this $C_\sigma$ number in `gips`, one can call `summary()` on the appropriate `gips` object:
-```{r n0_2, dependson="def3"}
+```{r n0_2}
 g1 <- gips(S, n, perm = "(1,2,3,4,5,6)", was_mean_estimated = FALSE)
 summary(g1)$n0
 g2 <- gips(S, n, perm = "(1,2)(3,4,5,6)", was_mean_estimated = FALSE)
 summary(g2)$n0
 ```
-This is called `n0` and not $C_\sigma$, because it is increased by 1 when the mean was estimated:
+This is called `n0` and not $C_\sigma$ because it is increased by 1 when the mean was estimated:
 
-```{r n0_1, dependson="def3"}
+```{r n0_1}
 S <- cov(Z)
 g1 <- gips(S, n, perm = "(1,2,3,4,5,6)", was_mean_estimated = TRUE)
 summary(g1)$n0
@@ -193,7 +208,7 @@ When one has the data matrix `Z`, one would like to know if it has a hidden stru
 ### General workflow
 
 1. Choose the prior distribution on $\Gamma$ and $\Sigma$.
-2. Calculate the posteriori distribution (up to a normalizing constant) by formula [[1]](https://arxiv.org/abs/2004.03503), (30).
+2. Calculate the posteriori distribution (up to a normalizing constant) by the formula [[1]](https://arxiv.org/abs/2004.03503), (30).
 3. Use the Metropolis-Hastings algorithm to find the permutation with the biggest value of the posterior probability $\mathbb{P}(\Gamma|Z)$.
 
 ### Details on the prior distribution
@@ -201,15 +216,15 @@ When one has the data matrix `Z`, one would like to know if it has a hidden stru
 The considered prior distribution of $\Gamma$ and $K=\Sigma^{-1}$:
 
 1. $\Gamma$ is uniformly distributed on the set of all cyclic subgroups of $\mathfrak{S}_p$.
-2. $K$ given $\Gamma$ follows the Diaconis-Ylvisaker conjugate prior distribution with parameters $\delta$ (real number, $\delta > 2$) and $D$ (symmetric, positive definite square matrix of the same size as `S`), see [[1]](https://arxiv.org/abs/2004.03503), Sec. 3.4.
+2. $K$ given $\Gamma$ follows the Diaconis-Ylvisaker conjugate prior distribution with parameters $\delta$ (real number, $\delta > 1$) and $D$ (symmetric, positive definite square matrix of the same size as `S`), see [[1]](https://arxiv.org/abs/2004.03503), Sec. 3.4.
 
-Footnote: Actually in some cases smaller (but still positive) values for $\delta$ parameter are theoretically correct. Refer to the [[1]](https://arxiv.org/abs/2004.03503).
+Footnote: Actually, for $\Gamma = \{id\}$, $\delta > 0$ parameters are theoretically correct. In `gips`, we want this to be defined for all cyclic groups $\Gamma$, so we restrict $\delta > 1$. Refer to the [[1]](https://arxiv.org/abs/2004.03503).
 
 ### `gips` technical details
 
-In `gips`, $\delta$ is named `delta`, and $D$ is named `D_matrix`. By default, they are set to $3$ and `diag(p)`, respectively. However, it is worth running the procedure for several parameters `D_matrix` of form $C\cdot diag(p)$ for positive constant $C$. Large $C$ (compared to the data) favors small groups.
+In `gips`, $\delta$ is named `delta`, and $D$ is named `D_matrix`. By default, they are set to $3$ and `diag(d, p)`, respectively, where `d = mean(diag(S))`. However, it is worth running the procedure for several parameters `D_matrix` of form $d\cdot diag(p)$ for positive constant $d$. Small $d$ (compared to the data) favors small structures. Large $d$ will "forget" the data.
 
-One can calculate the logarithm of formula (30) with function `log_posteriori_of_gips()`.
+One can calculate the logarithm of formula (30) with the function `log_posteriori_of_gips()`.
 
 ### Interpretation
 
@@ -223,13 +238,13 @@ $$\mathrm{N}_p(0,\pi_{c_{\text{map}}}(S))$$
 
 where $S = \frac{1}{n} \sum_{i=1}^n Z^{(i)}\cdot {Z^{(i)}}^\top$
 
-In such a case, we call $c_{\text{map}}$ the Maximum A Posteri (MAP).
+In such a case, we call $c_{\text{map}}$ the Maximum A Posteriori (MAP).
 
 ### Finding the MAP Estimator
 
-The space of all permutations is enormous for bigger $p$ ($p\ge9$). It is more reasonable to estimate the MAP in such a big space than to calculate it precisely.
+The space of all permutations is enormous for bigger $p$ (in our experiments, $p\ge 10$ is too big). In such a big space, estimating the MAP is more reasonable than calculating it precisely.
 
-Metropolis-Hastings algorithm suggested by the authors of [[1]](https://arxiv.org/abs/2004.03503) is a natural way to do it. To see the discussion on it and other options available in `gips`, see `vignette("Optimizers")` or its [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html).
+Metropolis-Hastings algorithm suggested by the authors of [[1]](https://arxiv.org/abs/2004.03503) is a natural way to do it. To see the discussion on it and other options available in `gips`, see `vignette("Optimizers", package="gips")` or its [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html).
 
 ### Example
 
@@ -252,9 +267,11 @@ sigma_matrix <- matrix(
 ) # sigma_matrix is a matrix invariant under permutation (1,2,3,4,5,6)
 
 # Generate example data from a model:
-withr::with_seed(1234,{
-  Z <- MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
-})
+Z <- withr::with_seed(2022,
+  code = MASS::mvrnorm(number_of_observations,
+    mu = mu, Sigma = sigma_matrix
+  )
+)
 # End of prepare model
 ```
 </div>
@@ -266,10 +283,10 @@ withr::with_seed(1234,{
   Show/hide data preparation
 </button>
 
-Let's say we have this data, `Z`. It has only $4$ observations, and its dimension is $p=6$.
+Let's say we have this data, `Z`. It has dimension $p=6$ and only $4$ observations.
 Let's assume `Z` was drawn from the normal distribution with the mean $(0,0,0,0,0,0)$. We want to estimate the covariance matrix:
 
-```{r, example2_readme2, dependson="example2_readme1"}
+```{r, example2_readme2}
 dim(Z)
 number_of_observations <- nrow(Z) # 4
 p <- ncol(Z) # 6
@@ -283,16 +300,110 @@ g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
 g_map <- find_MAP(g, optimizer = "brute_force")
 print(g_map)
 
-S_projected <- project_matrix(S, g_map[[1]])
+S_projected <- project_matrix(S, g_map)
 ```
 
-```{r, example2_readme3, dependson="example2_readme2", echo=FALSE}
+```{r, example2_readme3, echo=FALSE}
 gips:::pretty_plot_matrix(S_projected, title = "S_projected matrix")
 ```
 
-We see the posterior probability [[1,(30)]](https://arxiv.org/abs/2004.03503) has the biggest value for the permutation $(1,2,3,4,5,6)$. It was over 150 times bigger than for the trivial $\text{id} = (1)(2)\ldots(p)$ permutation. We interpret that under the assumptions (centered Gaussian), it is over 150 times more reasonable to assume the data `Z` was drawn from model $\mathrm{N}_p(0,\text{S_projected})$ than from model $\mathrm{N}_p(0,\text{S})$.
+We see the posterior probability [[1,(30)]](https://arxiv.org/abs/2004.03503) has the biggest value for the permutation $(1,2,3,4,5,6)$. It was over 100 times bigger than for the trivial $\text{id} = (1)(2)\ldots(p)$ permutation. We interpret that under the assumptions (centered Gaussian), it is over 100 times more reasonable to assume the data `Z` was drawn from model $\mathrm{N}_p(0,\text{S_projected})$ than from model $\mathrm{N}_p(0,\text{S})$.
+
+
+# Information Criterion - AIC and BIC
+
+One may be interested in Akaike's An Information Criterion (AIC) or Schwarz's Bayesian Information Criterion (BIC) of the found model. Those are defined based on log-Likelihood:
+
+$$\log L\left(\Sigma; Z^{(1)},\ldots,Z^{(n)}\right) = \sum_{i=1}^n \left(- \frac{p}{2}\log (2\pi) - \frac{1}{2}\log\left( \det\left( \Sigma\right)\right) - \frac12 {Z^{(i)}}^\top \Sigma^{-1} Z^{(i)}\right)= $$
+
+$$- \frac{np}{2}\log (2\pi) - \frac{n}{2}\log\left( \det\left( \Sigma\right)\right) - \frac{n}2\mathrm{tr}(\Sigma^{-1} S),$$
+where $S = \frac{1}{n} \sum_{i=1}^n Z^{(i)}\cdot {Z^{(i)}}^\top$.
+
+The MLE of $\Sigma$ in a model invariant under $\Gamma=c$ is $\hat{\Sigma} = \pi_{c}(S)$. Further, for every $c$ we have $\mathrm{tr}(\pi_{c}(S)^{-1} \cdot S) = p$, so:
+
+$$\log L\left(\pi_{c}(S); Z^{(1)},\ldots,Z^{(n)}\right) = - \frac{np}{2}\log (2\pi) - \frac{n}{2}\log\left( \det\left( \pi_{c}(S)\right)\right) - \frac{np}2$$
+
+which can be calculated by `logLik.gips()`.
+
+Then AIC and BIC are defined by:
+
+$$AIC = 2 \cdot (\dim M) -2 \log L(\pi_{c}(S))$$
+$$BIC = (\log n) \cdot (\dim M) -2 \log L(\pi_{c}(S))$$
+
+A smaller value of the criteria for a given model indicates a better fit.
+
+Those can be calculated by `AIC.gips()` and `BIC.gips()`.
+
+### Estimated mean
+When the mean was estimated, we have $S = \frac{1}{n-1} \sum_{i=1}^n (Z^{(i)} - \bar{Z})\cdot ({Z^{(i)} - \bar{Z})}^\top$, where $\bar{Z} = \frac{1}{n} \sum_{i=1}^n Z^{(i)}$. Then in the $\log L$ we use $n-1$ in stead of $n$. Definitions of AIC and BIC stay the same.
+
+
+### Example
+
+Consider an example similar to one in the **Bayesian model selection** section:
+
+<div id="spoiler4" style="display:none">
+```{r example3_1}
+# Prepare model, multivariate normal distribution
+p <- 6
+number_of_observations <- 7
+mu <- numeric(p)
+sigma_matrix <- matrix(
+  data = c(
+    1.05, 0.8, 0.6, 0.4, 0.6, 0.8,
+    0.8, 1.05, 0.8, 0.6, 0.4, 0.6,
+    0.6, 0.8, 1.05, 0.8, 0.6, 0.4,
+    0.4, 0.6, 0.8, 1.05, 0.8, 0.6,
+    0.6, 0.4, 0.6, 0.8, 1.05, 0.8,
+    0.8, 0.6, 0.4, 0.6, 0.8, 1.05
+  ),
+  nrow = p, byrow = TRUE
+) # sigma_matrix is a matrix invariant under permutation (1,2,3,4,5,6)
+
+# Generate example data from a model:
+Z <- withr::with_seed(2022,
+  code = MASS::mvrnorm(number_of_observations,
+    mu = mu, Sigma = sigma_matrix
+  )
+)
+# End of prepare model
+```
+</div>
+
+<button title="Click to show the data preparation" type="button"
+   onclick="if(document.getElementById('spoiler4') .style.display=='none')
+              {document.getElementById('spoiler4') .style.display=''}
+            else{document.getElementById('spoiler4') .style.display='none'}">
+  Show/hide data preparation
+</button>
+
+Let's say we have this data, `Z`. It has dimension $p=6$ and $7$ observations.
+Let's assume `Z` was drawn from the normal distribution with the mean $(0,0,0,0,0,0)$. We want to estimate the covariance matrix:
+
+```{r, example3_2}
+dim(Z)
+number_of_observations <- nrow(Z) # 7
+p <- ncol(Z) # 6
+
+S <- (t(Z) %*% Z) / number_of_observations
+
+g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
+g_map <- find_MAP(g, optimizer = "brute_force")
+```
+
+```{r, example3_3}
+AIC(g)
+AIC(g_map) # this is smaller, so this is better
+
+BIC(g)
+BIC(g_map) # this is smaller, so this is better
+```
+
+We will consider a `g_map` better model both in terms of the AIC and the BIC.
 
 
 # References
 
 [1] Piotr Graczyk, Hideyuki Ishi, Bartosz Kołodziejek, Hélène Massam. "Model selection in the space of Gaussian models invariant by symmetry." The Annals of Statistics, 50(3) 1747-1774 June 2022. [arXiv link](https://arxiv.org/abs/2004.03503); [DOI: 10.1214/22-AOS2174](https://doi.org/10.1214/22-AOS2174)
+
+[2] "Learning permutation symmetries with gips in R" by `gips` developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek, available on [arXiv:2307.00790](https://arxiv.org/abs/2307.00790).

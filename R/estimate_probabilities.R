@@ -33,7 +33,7 @@ estimate_probabilities <- function(perms, show_progress_bar = FALSE) {
   probabilities <- as.numeric(probabilities)
   names(probabilities) <- names(unnormalized_probabilities)
 
-  probabilities
+  sort(probabilities, decreasing = TRUE)
 }
 
 
@@ -94,30 +94,34 @@ get_coprimes <- function(n) {
 #'
 #' @param perms An output of permutations::allperms()
 #' @param log_posteriories A vector of all values of log posteriories of all `perms`.
-#' @param show_progress_bar A boolean. Indicate whether or not to show the progress bar.
+#' @param show_progress_bar A boolean. Indicate whether or not to show two progress bars.
 #'
 #' @returns A named numeric vector. Names: character representations of permutations.
 #' Elements: estimated posterior probabilities of permutations.
 #' @noRd
 calculate_probabilities <- function(perms, log_posteriories, show_progress_bar = FALSE) {
   if (show_progress_bar) {
-    progressBar <- utils::txtProgressBar(min = 0, max = 20 * length(perms), initial = 1)
+    progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 1)
   }
 
   for (i in 1:19) {
     perms_size <- i
-    if (prod(1:perms_size) == length(perms)) {
+    if (OEIS_A051625[i] == length(perms) || OEIS_A000142[i] == length(perms)) {
       break
     }
   }
+
   if (perms_size == 19) {
-    rlang::abort("Too big of a perms size!")
+    rlang::abort("There is sth wrong with this sequence of permutations!",
+      "i" = "The length of permutation vector hase to be an element of OEIS sequence A051625 or A000142",
+      "x" = paste0("You have the length of permutation vector = ", length(perms))
+    )
   }
 
   group_representatives <- character(0)
   for (i in 1:length(perms)) {
     if (show_progress_bar) {
-      utils::setTxtProgressBar(progressBar, 19 * i)
+      utils::setTxtProgressBar(progressBar, i)
     }
 
     # We should use `g_perm <- gips_perm(perms[i], perms_size)`,
@@ -127,14 +131,21 @@ calculate_probabilities <- function(perms, log_posteriories, show_progress_bar =
     # the `get_group_representative` is what we want to use:
     group_representatives[i] <- as.character(get_group_representative(g_perm))
   }
+  
+  if (show_progress_bar) {
+    close(progressBar)
+  }
 
 
   # get rid of the repeated permutations:
+  if (show_progress_bar) {
+    progressBar <- utils::txtProgressBar(min = 0, max = length(group_representatives), initial = 1)
+  }
   groups_unrepeated_log_posteriories <- log_posteriories[1]
   names(groups_unrepeated_log_posteriories)[1] <- group_representatives[1]
   for (i in 2:length(group_representatives)) {
     if (show_progress_bar) {
-      utils::setTxtProgressBar(progressBar, 19 * length(perms) + i)
+      utils::setTxtProgressBar(progressBar, i)
     }
     if (!(group_representatives[i] %in% names(groups_unrepeated_log_posteriories))) {
       groups_unrepeated_log_posteriories[length(groups_unrepeated_log_posteriories) + 1] <- log_posteriories[i]
@@ -146,6 +157,5 @@ calculate_probabilities <- function(perms, log_posteriories, show_progress_bar =
     close(progressBar)
   }
 
-
-  change_log_probabilities_unnorm_to_probabilities(groups_unrepeated_log_posteriories)
+  sort(change_log_probabilities_unnorm_to_probabilities(groups_unrepeated_log_posteriories), decreasing = TRUE)
 }

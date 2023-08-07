@@ -28,28 +28,28 @@ new_gips(
 validate_gips(g)
 }
 \arguments{
-\item{S}{A matrix; estimated covariance matrix.
+\item{S}{A matrix; empirical covariance matrix.
 When \code{Z} is the observed data:
 \itemize{
 \item if one does not know the theoretical mean and has to
 estimate it with the observed mean, use \code{S = cov(Z)},
-and leave parameter \code{was_mean_estimated = TRUE} as default.
+and leave parameter \code{was_mean_estimated = TRUE} as default;
 \item if one know the theoretical mean is 0, use
 \code{S = (t(Z) \%*\% Z) / number_of_observations}, and set
-parameter \code{was_mean_estimated = FALSE};
+parameter \code{was_mean_estimated = FALSE}.
 }}
 
 \item{number_of_observations}{A number of data points
 that \code{S} is based on.}
 
 \item{delta}{A number, hyper-parameter of a Bayesian model.
-Has to be bigger than 2.
-See \strong{Hyperparameters} section bellow.}
+It has to be strictly bigger than 1.
+See the \strong{Hyperparameters} section below.}
 
-\item{D_matrix}{A symmetric, positive-definite matrix of the same size as \code{S}.
+\item{D_matrix}{Symmetric, positive-definite matrix of the same size as \code{S}.
 Hyper-parameter of a Bayesian model.
-When \code{NULL}, the identity matrix is taken.
-See \strong{Hyperparameters} section bellow.}
+When \code{NULL}, the (hopefully) reasonable one is derived from the data.
+For more details, see the \strong{Hyperparameters} section below.}
 
 \item{was_mean_estimated}{A boolean.
 \itemize{
@@ -60,8 +60,10 @@ a \code{(t(Z) \%*\% Z) / number_of_observations} calculation.
 }}
 
 \item{perm}{An optional permutation to be the base for the \code{gips} object.
-Can be of a \code{gips_perm} or a \code{permutation} class, or anything
-the function \code{\link[permutations:permutation]{permutations::permutation()}} can handle.}
+It can be of a \code{gips_perm} or a \code{permutation} class, or anything
+the function \code{\link[permutations:permutation]{permutations::permutation()}} can handle.
+It can also be of a \code{gips} class, but
+it will be interpreted as the underlying \code{gips_perm}.}
 
 \item{list_of_gips_perm}{A list with a single element of
 a \code{gips_perm} class. The base object for the \code{gips} object.}
@@ -69,7 +71,7 @@ a \code{gips_perm} class. The base object for the \code{gips} object.}
 \item{optimization_info}{For internal use only. \code{NULL} or the list with
 information about the optimization process.}
 
-\item{g}{Object to be checked whether it is proper object of a \code{gips} class.}
+\item{g}{Object to be checked whether it is a proper object of a \code{gips} class.}
 }
 \value{
 \code{gips()} returns an object of
@@ -84,16 +86,16 @@ it produces an error.
 }
 \description{
 Create a \code{gips} object.
-This object will consist of data and all other information needed to find
-the most likely invariant permutation. The optimization itself
-will not be performed. One must call the \code{\link[=find_MAP]{find_MAP()}}
-function to do it. See examples below.
+This object will contain initial data and all other information
+needed to find the most likely invariant permutation.
+It will not perform optimization. One must call
+the \code{\link[=find_MAP]{find_MAP()}} function to do it. See the examples below.
 }
 \section{Functions}{
 \itemize{
-\item \code{new_gips()}: Constructor. Only intended for low-level use.
+\item \code{new_gips()}: Constructor. It is only intended for low-level use.
 
-\item \code{validate_gips()}: Validator. Only intended for low-level use.
+\item \code{validate_gips()}: Validator. It is only intended for low-level use.
 
 }}
 \section{Methods for a \code{gips} class}{
@@ -102,18 +104,40 @@ function to do it. See examples below.
 \item \code{\link[=summary.gips]{summary.gips()}}
 \item \code{\link[=plot.gips]{plot.gips()}}
 \item \code{\link[=print.gips]{print.gips()}}
+\item \code{\link[=logLik.gips]{logLik.gips()}}
+\item \code{\link[=AIC.gips]{AIC.gips()}}
+\item \code{\link[=BIC.gips]{BIC.gips()}}
+\item \code{\link[=as.character.gips]{as.character.gips()}}
 }
 }
 
 \section{Hyperparameters}{
 
+We encourage the user to try \code{D_matrix = d * I}, where \code{I} is an identity matrix of a size
+\verb{p x p} and \code{d > 0} for some different \code{d}.
+When \code{d} is small compared to the data (e.g., \code{d=0.1 * mean(diag(S))}),
+bigger structures will be found.
+When \code{d} is big compared to the data (e.g., \code{d=100 * mean(diag(S))}),
+the posterior distribution does not depend on the data.
+
+Taking \code{D_matrix = d * I} is equivalent to setting \code{S <- S / d}.
+
+The default for \code{D_matrix} is \code{D_matrix = d * I}, where
+\code{d = mean(diag(S))}, which is equivalent to modifying \code{S}
+so that the mean value on the diagonal is 1.
+
 In the Bayesian model, the prior distribution for
 the covariance matrix is a generalized case of
 \href{https://en.wikipedia.org/wiki/Wishart_distribution}{Wishart distribution}.
 
-For brief introduction, see \strong{Bayesian model selection}
+For a brief introduction, see the \strong{Bayesian model selection}
 section in \code{vignette("Theory", package = "gips")} or in its
 \href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}).
+
+For analysis of the Hyperparameters influence, see \strong{Section 3.2.}
+of "Learning permutation symmetries with gips in R"
+by \code{gips} developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek,
+available on \href{https://arxiv.org/abs/2307.00790}{arXiv:2307.00790}.
 }
 
 \examples{
@@ -148,8 +172,8 @@ if (require("graphics")) {
 }
 \seealso{
 \itemize{
-\item \code{\link[stats:cor]{stats::cov()}} - The \code{S} parameter is most of the time
-an estimated covariance matrix, so a result of the \code{cov()} function.
+\item \code{\link[stats:cor]{stats::cov()}} - The \code{S} parameter, as an empirical covariance matrix,
+is most of the time a result of the \code{cov()} function.
 For more information, see
 \href{https://en.wikipedia.org/wiki/Estimation_of_covariance_matrices}{Wikipedia - Estimation of covariance matrices}.
 \item \code{\link[=find_MAP]{find_MAP()}} - The function that finds

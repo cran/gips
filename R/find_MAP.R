@@ -11,17 +11,27 @@
 #'   its `max_iter` without converging.
 #' * the optimizer will find the permutation with smaller `n0` than
 #'   `number_of_observations` (for more information on what it means,
-#'   see **\eqn{C\sigma} and `n0`** section
+#'   see **\eqn{C_\sigma} and `n0`** section
 #'   in `vignette("Theory", package = "gips")` or in its
 #'   [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)).
 #'
 #' @section Possible algorithms to use as optimizers:
 #'
-#' For a more in-depth explanations, see
+#' For a in-depth explanation, see in
 #'   `vignette("Optimizers", package = "gips")` or in its
-#'   [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html)).
-#'   
+#'   [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html).
+#'
 #' For every algorithm, there are some aliases available.
+#' 
+#' * `"brute_force"`, `"BF"`, `"full"` - use
+#'     the **Brute Force** algorithm that checks the whole permutation
+#'     space of a given size. This algorithm will find
+#'     the actual Maximum A Posteriori Estimation, but it is
+#'     very computationally expensive for bigger spaces.
+#'     We recommend Brute Force only for `p <= 9`.
+#'     For the time the Brute Force takes on our machines, see in
+#'     `vignette("Optimizers", package = "gips")` or in its
+#'     [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html).
 #'
 #' * `"Metropolis_Hastings"`, `"MH"` - use
 #'     the **Metropolis-Hastings** algorithm;
@@ -29,10 +39,10 @@
 #'     The algorithm will draw a random transposition in every iteration
 #'     and consider changing the current state (permutation).
 #'     When the `max_iter` is reached, the algorithm will return the best
-#'     permutation calculated so far as the MAP Estimator. This implements
+#'     permutation calculated as the MAP Estimator. This implements
 #'     the [*Second approach* from references, section 4.1.2](https://arxiv.org/abs/2004.03503).
 #'     This algorithm used in this context is a special case of the
-#'     **Simulated Annealing** the reader may be more familiar with;
+#'     **Simulated Annealing** the user may be more familiar with;
 #'     [see Wikipedia](https://en.wikipedia.org/wiki/Simulated_annealing).
 #'
 #' * `"hill_climbing"`, `"HC"` - use
@@ -42,49 +52,44 @@
 #'     go to the one with the biggest a posteriori value.
 #'     The optimization ends when all *neighbors* will have a smaller
 #'     a posteriori value. If the `max_iter` is reached before the end,
-#'     then the warning is shown, and it is recommended to start
-#'     the optimization again on the output of the `find_MAP()`.
-#'     Remember that there are `p*(p-1)/2` transpositions to be checked
+#'     then the warning is shown, and it is recommended to continue
+#'     the optimization on the output of the `find_MAP()` with
+#'     `optimizer = "continue"`; see examples.
+#'     Remember that `p*(p-1)/2` transpositions will be checked
 #'     in every iteration. For bigger `p`, this may be costly.
 #'
-#' * `"brute_force"`, `"BF"`, `"full"` - use
-#'     the **Brute Force** algorithm that checks the whole permutation
-#'     space of a given size. This algorithm will definitely find
-#'     the actual Maximum A Posteriori Estimation but is
-#'     very computationally expensive for bigger spaces.
-#'
-#' @param g Object of a `gips` class
-#' @param max_iter Number of iterations for an algorithm to perform.
-#'     At least 2. For `optimizer="MH"` it has to be finite;
-#'     for `optimizer="HC"` it can be infinite;
-#'     for `optimizer="BF"` it is not used.
-#' @param optimizer The optimizer for the search of the maximum posteriori.
-#'   * `"MH"` (the default for unoptimized `g`) - Metropolis-Hastings
-#'   * `"HC"` - Hill Climbing
-#'   * `"BF"` - Brute Force
+#' @param g Object of a `gips` class.
+#' @param max_iter The number of iterations for an algorithm to perform.
+#'     At least 2. For `optimizer = "BF"`, it is not used;
+#'     for `optimizer = "MH"`, it has to be finite;
+#'     for `optimizer = "HC"`, it can be infinite.
+#' @param optimizer The optimizer for the search of the maximum posteriori:
+#'   * `"BF"` (the default for unoptimized `g` with `perm size <= 9`) - Brute Force;
+#'   * `"MH"` (the default for unoptimized `g` with `perm size > 10`) - Metropolis-Hastings;
+#'   * `"HC"` - Hill Climbing;
 #'   * `"continue"` (the default for optimized `g`) - The same as
 #'       the `g` was optimized by (see Examples).
 #'
-#' For more details, see the "**Possible algorithms to use as optimizers**"
-#' section below.
+#' See the **Possible algorithms to use as optimizers**
+#' section below for more details.
 #' @param show_progress_bar A boolean.
-#'     Indicate whether or not to show the progress bar.
-#'   * When `max_iter` is infinite, `show_progress_bar` has to be `FALSE`.
-#'   * When `return_probabilities=TRUE`, then
+#'     Indicate whether or not to show the progress bar:
+#'   * When `max_iter` is infinite, `show_progress_bar` has to be `FALSE`;
+#'   * When `return_probabilities = TRUE`, then
 #'       shows an additional progress bar for the time
-#'       when the probabilities are calculated
-#' @param save_all_perms A boolean. `TRUE` indicates to save a list of
-#'     all permutations that were visited during optimization.
-#'     This can be useful, but need a lot more RAM.
+#'       when the probabilities are calculated.
+#' @param save_all_perms A boolean. `TRUE` indicates saving
+#'     a list of all permutations visited during optimization.
+#'     This can be useful sometimes but need a lot more RAM.
 #' @param return_probabilities A boolean. `TRUE` can only be provided
-#'     when `save_all_perms` is `TRUE` and for:
-#'   * `optimizer="MH"` - use Metropolis-Hastings results to
-#'       estimate posterior probabilities
-#'   * `optimizer="BF"` - use brute force results to
-#'       calculate exact posterior probabilities
+#'     only when `save_all_perms = TRUE`. For:
+#'   * `optimizer = "MH"` - use Metropolis-Hastings results to
+#'       estimate posterior probabilities;
+#'   * `optimizer = "BF"` - use brute force results to
+#'       calculate exact posterior probabilities.
 #'
-#' This additional calculations are costly, so second progress bar
-#'     is shown (when `show_progress_bar` is `TRUE`).
+#' These additional calculations are costly, so a second and third
+#'     progress bar is shown (when `show_progress_bar = TRUE`).
 #'
 #' To examine probabilities after optimization,
 #'     call [get_probabilities_from_gips()].
@@ -101,25 +106,27 @@
 #'
 #' @seealso
 #' * [gips()] - The constructor of a `gips` class.
-#'     The `gips` object is used as the `g` parameter.
+#'     The `gips` object is used as the `g` parameter of `find_MAP()`.
 #' * [plot.gips()] - Practical plotting function for
 #'     visualizing the optimization process.
-#' * [summary.gips()] - The function that summarizes the output of optimization.
+#' * [summary.gips()] - Summarize the output of optimization.
+#' * [AIC.gips()], [BIC.gips()] - Get the Information Criterion
+#'     of the found model.
 #' * [get_probabilities_from_gips()] - When
 #'     `find_MAP(return_probabilities = TRUE)` was called,
-#'     then those probabilities can be extracted with this function.
+#'     probabilities can be extracted with this function.
 #' * [log_posteriori_of_gips()] - The function that the optimizers
 #'     of `find_MAP()` tries to find the argmax of.
 #' * [forget_perms()] - When the `gips` object was optimized
 #'     with `find_MAP(save_all_perms = TRUE)`, it will be of
-#'     considerable size in RAM. `forget_perms` can make such an object
-#'     lighter in memory by forgetting the permutations that it was in.
+#'     considerable size in RAM. `forget_perms()` can make such an object
+#'     lighter in memory by forgetting the permutations it considered.
 #' * `vignette("Optimizers", package = "gips")` or its
-#'     [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html)) - 
+#'     [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html) -
 #'     A place to learn more about
 #'     the available optimizers.
 #' * `vignette("Theory", package = "gips")` or its
-#'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)) - 
+#'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html) -
 #'     A place to learn more about
 #'     the math behind the `gips` package.
 #'
@@ -183,8 +190,12 @@ find_MAP <- function(g, max_iter = NA, optimizer = NA,
   }
   # default optimizer:
   if (is.na(optimizer)) {
-    optimizer <- ifelse(is.null(attr(g, "optimization_info")),
-      "MH", "continue"
+    optimizer <- ifelse(!is.null(attr(g, "optimization_info")),
+      "continue",
+      ifelse(ncol(attr(g, "S")) <= 9,
+        "BF",
+        "MH"
+      )
     )
 
     rlang::inform(c("You used the default value of the 'optimizer' argument in `find_MAP()`.",
@@ -279,15 +290,16 @@ find_MAP <- function(g, max_iter = NA, optimizer = NA,
   if ((optimizer %in% c("MH", "Metropolis_Hastings")) &&
     (max_iter * 10 >= prod(1:ncol(attr(g, "S")))) &&
     is.finite(max_iter)) { # infinite max_iter is illegal, but additional check will not hurt
-    rlang::inform(c(paste0(
-      "You called optimization with Metropolis_Hastings algorith with ",
-      max_iter, " iterations."
-    ),
-    "i" = paste0(
-      "Consider using `optimizer = 'brute_force'`, because it will use ",
-      ncol(attr(g, "S")), "! (factorial) = ", prod(1:ncol(attr(g, "S"))),
-      " iterations and will browse all permutations, therefore it will definitely find the maximum posteriori estimator."
-    )
+    rlang::inform(c(
+      paste0(
+        "You called optimization with Metropolis_Hastings algorith with ",
+        max_iter, " iterations."
+      ),
+      "i" = paste0(
+        "Consider using `optimizer = 'brute_force'`, because it will use ",
+        ncol(attr(g, "S")), "! (factorial) = ", prod(1:ncol(attr(g, "S"))),
+        " iterations and will browse all permutations, therefore it will definitely find the maximum posteriori estimator."
+      )
     ))
   }
 
@@ -355,10 +367,9 @@ find_MAP <- function(g, max_iter = NA, optimizer = NA,
         number_of_observations, "."
       ),
       "i" = "The covariance matrix invariant under the found permutation does not have the likelihood properly defined.",
-      "i" = "For more in-depth explanation, see 'Project Matrix - Equation (6)' section in `vignette('Theory', package = 'gips')` or its pkgdown page: https://przechoj.github.io/gips/articles/Theory.html."
+      "i" = "For a more in-depth explanation, see the 'Project Matrix - Equation (6)' section in `vignette('Theory', package = 'gips')` or its pkgdown page: https://przechoj.github.io/gips/articles/Theory.html."
     ))
   }
-
 
   return(combine_gips(g, gips_optimized))
 }
@@ -400,11 +411,23 @@ Metropolis_Hastings_optimizer <- function(S,
     D_matrix <- diag(nrow = perm_size)
   }
 
-  my_goal_function <- function(perm) {
-    log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
+  my_goal_function <- function(perm, i) {
+    out_val <- log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
       S = S, number_of_observations = number_of_observations,
       delta = delta, D_matrix = D_matrix
     )
+
+    if (is.nan(out_val) || is.infinite(out_val)) {
+      # See ISSUE#5; We hope the implementation of log calculations have stopped this problem.
+      rlang::abort(c(
+        "gips is yet unable to process this S matrix, and produced a NaN or Inf value while trying.",
+        "x" = paste0("The posteriori value of ", ifelse(is.nan(out_val), "NaN", "Inf"), " occured!"),
+        "i" = "We think it can only happen for ncol(S) > 500 or for huge D_matrix. If it is not the case for You, please get in touch with us on ISSUE#5.",
+        "x" = paste0("The Metropolis Hastings algorithm was stopped after ", i, " iterations.")
+      ))
+    }
+
+    out_val
   }
 
   acceptance <- rep(FALSE, max_iter)
@@ -420,7 +443,7 @@ Metropolis_Hastings_optimizer <- function(S,
   if (show_progress_bar) {
     progressBar <- utils::txtProgressBar(min = 0, max = max_iter, initial = 1)
   }
-  log_posteriori_values[1] <- my_goal_function(current_perm)
+  log_posteriori_values[1] <- my_goal_function(current_perm, 0)
 
   found_perm <- start_perm
   found_perm_log_posteriori <- log_posteriori_values[1]
@@ -436,16 +459,7 @@ Metropolis_Hastings_optimizer <- function(S,
     e <- runif_transposition(perm_size)
     perm_proposal <- compose_with_transposition(current_perm, e)
 
-    goal_function_perm_proposal <- my_goal_function(perm_proposal)
-    if (is.nan(goal_function_perm_proposal) || is.infinite(goal_function_perm_proposal)) {
-      # See ISSUE#5; We hope the implementation of log calculations have stopped this problem.
-      rlang::warn(c("gips is yet unable to process this S matrix, and produced a NaN or Inf value while trying.",
-        "x" = paste0("The posteriori value of ", ifelse(is.nan(goal_function_perm_proposal), "NaN", "Inf"), " occured!"),
-        "i" = "We think it can only happen for ncol(S) > 500. If it is not the case for You, please get in touch with us on ISSUE#5."
-      ))
-
-      break()
-    }
+    goal_function_perm_proposal <- my_goal_function(perm_proposal, i)
 
     # if goal_function_perm_proposal > log_posteriori_values[i], then it is true, because Uniformly_drawn_numbers[i] \in [0,1]
     if (Uniformly_drawn_numbers[i] < exp(goal_function_perm_proposal - log_posteriori_values[i])) { # the probability of drawing e such that g' = g*e is the same as the probability of drawing e' such that g = g'*e. This probability is 1/(p choose 2). That means this is Metropolis algorithm, not necessary Metropolis-Hastings.
@@ -547,11 +561,23 @@ hill_climbing_optimizer <- function(S,
   }
 
 
-  my_goal_function <- function(perm) {
-    log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
+  my_goal_function <- function(perm, i) {
+    out_val <- log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
       S = S, number_of_observations = number_of_observations,
       delta = delta, D_matrix = D_matrix
     )
+
+    if (is.nan(out_val) || is.infinite(out_val)) {
+      # See ISSUE#5; We hope the implementation of log calculations have stopped this problem.
+      rlang::abort(c(
+        "gips is yet unable to process this S matrix, and produced a NaN or Inf value while trying.",
+        "x" = paste0("The posteriori value of ", ifelse(is.nan(out_val), "NaN", "Inf"), " occured!"),
+        "i" = "We think it can only happen for ncol(S) > 500 or for huge D_matrix. If it is not the case for You, please get in touch with us on ISSUE#5.",
+        "x" = paste0("The Hill Climbing algorithm was stopped after ", i, " iterations.")
+      ))
+    }
+
+    out_val
   }
 
   goal_function_best_logvalues <- numeric(0)
@@ -566,7 +592,7 @@ hill_climbing_optimizer <- function(S,
   }
   current_perm <- start_perm
 
-  goal_function_best_logvalues[1] <- my_goal_function(current_perm)
+  goal_function_best_logvalues[1] <- my_goal_function(current_perm, 0)
   log_posteriori_values[1] <- goal_function_best_logvalues[1]
 
   # mail loop
@@ -583,7 +609,7 @@ hill_climbing_optimizer <- function(S,
     for (i in 1:(perm_size - 1)) {
       for (j in (i + 1):perm_size) {
         neighbour <- compose_with_transposition(current_perm, c(i, j))
-        neighbour_value <- my_goal_function(neighbour)
+        neighbour_value <- my_goal_function(neighbour, iteration)
         log_posteriori_values[length(log_posteriori_values) + 1] <- neighbour_value
 
         if (neighbour_value > best_neighbour_value) {
@@ -650,7 +676,8 @@ hill_climbing_optimizer <- function(S,
 }
 
 
-brute_force_optimizer <- function(S,
+brute_force_optimizer <- function(
+    S,
     number_of_observations,
     delta = 3, D_matrix = NULL,
     return_probabilities = return_probabilities,
@@ -676,30 +703,69 @@ brute_force_optimizer <- function(S,
     ))
   }
 
+  if (perm_size > 9) { # I don't know how to test this without running the optimization...
+    rlang::warn(c("Optimizer 'brute_force' will take very long time to browse such a big permutional space.",
+      "x" = paste0(
+        "You provided a space with size ", perm_size,
+        "! (factorial), which has ", prod(1:perm_size),
+        " elements."
+      ),
+      "i" = "Do You want to use other optimizer for such a big space? For example 'Metropolis_Hastings' or 'hill_climbing'?"
+    ))
+  }
+
+  iterations_to_perform <-
+    if ((3 <= perm_size) && (perm_size <= 9)) {
+      # Only the generators are interesting for us:
+      # perm_group_generators are calculated only for up to perm_size = 9
+      # See ISSUE#21 for more information
+      OEIS_A051625[perm_size]
+    } else {
+      prod(1:perm_size)
+    }
+
   if (show_progress_bar) {
-    progressBar <- utils::txtProgressBar(min = 0, max = prod(1:perm_size), initial = 1)
+    progressBar <- utils::txtProgressBar(min = 0, max = iterations_to_perform, initial = 1)
   }
 
   if (is.null(D_matrix)) {
     D_matrix <- diag(nrow = perm_size)
   }
 
-  my_goal_function <- function(perm) {
-    log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
+  my_goal_function <- function(perm, i) {
+    out_val <- log_posteriori_of_perm(perm, # We recommend to use the `log_posteriori_of_gips()` function. If You really want to use `log_posteriori_of_perm`, remember to edit `number_of_observations` if the mean was estimated!
       S = S, number_of_observations = number_of_observations,
       delta = delta, D_matrix = D_matrix
     )
+
+    if (is.nan(out_val) || is.infinite(out_val)) {
+      # See ISSUE#5; We hope the implementation of log calculations have stopped this problem.
+      rlang::abort(c(
+        "gips is yet unable to process this S matrix, and produced a NaN or Inf value while trying.",
+        "x" = paste0("The posteriori value of ", ifelse(is.nan(out_val), "NaN", "Inf"), " occured!"),
+        "i" = "We think it can only happen for ncol(S) > 500 or for huge D_matrix. If it is not the case for You, please get in touch with us on ISSUE#5.",
+        "x" = paste0("The Brute Force algorithm was stopped after ", i, " iterations.")
+      ))
+    }
+
+    out_val
   }
 
   # main loop
   all_perms_list <- permutations::allperms(perm_size)
   all_perms_list <- permutations::as.cycle(all_perms_list)
+  if ((3 <= perm_size) && (perm_size <= 9)) {
+    # Only the generators are interesting for us:
+    # perm_group_generators are calculated only for up to perm_size = 9
+    # See ISSUE#21 for more information
+    all_perms_list <- all_perms_list[perm_group_generators_list[[perm_size - 2]]]
+  }
   log_posteriori_values <- sapply(1:length(all_perms_list), function(i) {
     if (show_progress_bar) {
       utils::setTxtProgressBar(progressBar, i)
     }
     this_perm <- permutations::cycle(list(all_perms_list[[i]]))
-    my_goal_function(this_perm)
+    my_goal_function(this_perm, i)
   })
 
   if (show_progress_bar) {
@@ -727,7 +793,7 @@ brute_force_optimizer <- function(S,
     "start_perm" = permutations::id,
     "last_perm" = NULL,
     "last_perm_log_posteriori" = NULL,
-    "iterations_performed" = prod(1:perm_size),
+    "iterations_performed" = iterations_to_perform,
     "optimization_algorithm_used" = "brute_force",
     "post_probabilities" = probabilities,
     "did_converge" = TRUE,
@@ -759,7 +825,9 @@ combine_gips <- function(g1, g2, show_progress_bar = FALSE) {
 
   if (is.null(attr(g1, "optimization_info")) ||
     attr(g2, "optimization_info")[["optimization_algorithm_used"]] == "brute_force") { # when brute_force was used, forget the initial optimization
-
+    
+    attr(g2, "optimization_info")[["original_perm"]] <- g1[[1]]
+    
     return(g2)
   }
 
@@ -790,6 +858,7 @@ combine_gips <- function(g1, g2, show_progress_bar = FALSE) {
   }
 
   optimization_info_new <- list(
+    "original_perm" = optimization_info1[["original_perm"]],
     "acceptance_rate" = (n1 * optimization_info1[["acceptance_rate"]] + n2 * optimization_info2[["acceptance_rate"]]) / (n1 + n2),
     "log_posteriori_values" = c(optimization_info1[["log_posteriori_values"]], optimization_info2[["log_posteriori_values"]]),
     "visited_perms" = visited_perms,

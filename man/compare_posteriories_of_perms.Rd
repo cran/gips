@@ -13,7 +13,8 @@ compare_posteriories_of_perms(
   delta = 3,
   D_matrix = NULL,
   was_mean_estimated = TRUE,
-  print_output = TRUE
+  print_output = TRUE,
+  digits = 3
 )
 
 compare_log_posteriories_of_perms(
@@ -24,32 +25,37 @@ compare_log_posteriories_of_perms(
   delta = 3,
   D_matrix = NULL,
   was_mean_estimated = TRUE,
-  print_output = TRUE
+  print_output = TRUE,
+  digits = 3
 )
 }
 \arguments{
 \item{perm1, perm2}{Permutations to compare.
 How many times \code{perm1} is more likely than \code{perm2}?
-Those can be provided as the \code{gips} object,
-the \code{gips_perm} object or anything that can be used as
+Those can be provided as the \code{gips} objects,
+the \code{gips_perm} objects, or anything that can be used as
 the \code{x} parameter in the \code{\link[=gips_perm]{gips_perm()}} function.
 They do not have to be of the same class.}
 
 \item{S, number_of_observations, delta, D_matrix, was_mean_estimated}{The same parameters as in the \code{\link[=gips]{gips()}} function.
-If at least one of \code{perm1} or \code{perm2} is of a \code{gips} class,
-they overwritten with those from \code{gips} object.}
+If at least one of \code{perm1} or \code{perm2} is a \code{gips} object,
+they are overwritten with those from the \code{gips} object.}
 
 \item{print_output}{A boolean.
-When TRUE, the computed value will be printed with
-additional text and returned invisibly. When FALSE,
+When \code{TRUE} (default), the computed value will be printed with
+additional text and returned invisibly. When \code{FALSE},
 the computed value will be returned visibly.}
+
+\item{digits}{Integer. Only used when \code{print_output = TRUE}.
+The number of digits after the comma to print.
+It can be negative, can be \code{+Inf}. It is passed to \code{base::round()}.}
 }
 \value{
-\code{compare_posteriories_of_perms} returns the value of
-how many times the \code{perm1} is more likely than \code{perm2}.
+The function \code{compare_posteriories_of_perms()} returns
+the value of how many times the \code{perm1} is more likely than \code{perm2}.
 
-\code{compare_log_posteriories_of_perms} returns the logarithm of
-how many times the \code{perm1} is more likely than \code{perm2}.
+The function \code{compare_log_posteriories_of_perms()} returns
+the logarithm of how many times the \code{perm1} is more likely than \code{perm2}.
 }
 \description{
 Check which permutation is more likely and how much more likely.
@@ -57,7 +63,7 @@ Check which permutation is more likely and how much more likely.
 \section{Functions}{
 \itemize{
 \item \code{compare_log_posteriories_of_perms()}: More stable,
-logarithmic version of \code{compare_posteriories_of_perms}.
+logarithmic version of \code{compare_posteriories_of_perms()}.
 The natural logarithm is used.
 
 }}
@@ -68,12 +74,12 @@ perm_size <- 6
 mu <- runif(6, -10, 10) # Assume we don't know the mean
 sigma_matrix <- matrix(
   data = c(
-    1.0, 0.8, 0.6, 0.4, 0.6, 0.8,
-    0.8, 1.0, 0.8, 0.6, 0.4, 0.6,
-    0.6, 0.8, 1.0, 0.8, 0.6, 0.4,
-    0.4, 0.6, 0.8, 1.0, 0.8, 0.6,
-    0.6, 0.4, 0.6, 0.8, 1.0, 0.8,
-    0.8, 0.6, 0.4, 0.6, 0.8, 1.0
+    1.05, 0.8, 0.6, 0.4, 0.6, 0.8,
+    0.8, 1.05, 0.8, 0.6, 0.4, 0.6,
+    0.6, 0.8, 1.05, 0.8, 0.6, 0.4,
+    0.4, 0.6, 0.8, 1.05, 0.8, 0.6,
+    0.6, 0.4, 0.6, 0.8, 1.05, 0.8,
+    0.8, 0.6, 0.4, 0.6, 0.8, 1.05
   ),
   nrow = perm_size, byrow = TRUE
 ) # sigma_matrix is a matrix invariant under permutation (1,2,3,4,5,6)
@@ -84,8 +90,8 @@ S <- cov(Z) # Assume we have to estimate the mean
 g <- gips(S, number_of_observations)
 g_map <- find_MAP(g, max_iter = 10, show_progress_bar = FALSE, optimizer = "Metropolis_Hastings")
 
-compare_posteriories_of_perms(g_map, g, print_output = FALSE)
-compare_log_posteriories_of_perms(g_map, g, print_output = FALSE)
+compare_posteriories_of_perms(g_map, g, print_output = TRUE)
+exp(compare_log_posteriories_of_perms(g_map, g, print_output = FALSE))
 }
 \seealso{
 \itemize{
@@ -93,5 +99,9 @@ compare_log_posteriories_of_perms(g_map, g, print_output = FALSE)
 the optimized \code{gips} object compared to the starting permutation.
 \item \code{\link[=summary.gips]{summary.gips()}} - The function that calculates the posterior of
 the optimized \code{gips} object compared to the starting permutation.
+\item \code{\link[=find_MAP]{find_MAP()}} - The function that finds the permutation that
+maximizes \code{log_posteriori_of_gips()}.
+\item \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}} - The function this
+\code{compare_posteriories_of_perms()} calls underneath.
 }
 }

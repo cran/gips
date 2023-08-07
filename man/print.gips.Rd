@@ -6,7 +6,7 @@
 \usage{
 \method{print}{gips}(
   x,
-  digits = Inf,
+  digits = 3,
   compare_to_original = TRUE,
   log_value = FALSE,
   oneline = FALSE,
@@ -27,8 +27,8 @@ times more likely is the current permutation compared to:
 \item the starting permutation (for optimized \code{gips} object).
 }}
 
-\item{log_value}{A logical. Whether to print the value
-of a \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}. Default to \code{FALSE}.}
+\item{log_value}{A logical. Whether to print the logarithmic value.
+Default to \code{FALSE}.}
 
 \item{oneline}{A logical. Whether to print in
 one or multiple lines. Default to \code{FALSE}.}
@@ -43,8 +43,8 @@ Printing function for a \code{gips} class.
 }
 \examples{
 S <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE)
-g <- gips(S, 10)
-\donttest{print(g, digits = 4)}
+g <- gips(S, 10, perm = "(12)")
+print(g, digits = 4, oneline = TRUE)
 }
 \seealso{
 \itemize{

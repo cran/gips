@@ -9,15 +9,15 @@
 \arguments{
 \item{x}{An object of a \code{gips_perm} class.}
 
-\item{...}{Further arguments passed to \code{\link[permutations:print]{permutations::print.cycle()}}.}
+\item{...}{Further arguments (currently ignored).}
 }
 \value{
-Returns its argument invisibly, after printing it.
+Returns an invisible \code{NULL}.
 }
 \description{
 Printing function for a \code{gips_perm} class.
 }
 \examples{
-g_perm <- gips_perm(permutations::as.cycle("(5,4)"), 5)
-\donttest{print(g_perm)}
+gperm <- gips_perm("(5,4)", 5)
+print(gperm)
 }

@@ -7,10 +7,12 @@
 prepare_orthogonal_matrix(perm, perm_size = NULL, basis = NULL)
 }
 \arguments{
-\item{perm}{An object of a \code{gips_perm} or a \code{permutations::cycle} class.}
+\item{perm}{An object of a \code{gips_perm} or anything
+a \code{gips_perm()} can handle. It can also be of a \code{gips} class,
+but it will be interpreted as the underlying \code{gips_perm}.}
 
 \item{perm_size}{Size of a permutation.
-Required if \code{perm} is of a \code{permutations::cycle} class.}
+Required if \code{perm} is neither \code{gips_perm} nor \code{gips}.}
 
 \item{basis}{A matrix with basis vectors in COLUMNS. Identity by default.}
 }
@@ -20,21 +22,25 @@ columns from vector elements \eqn{v_k^{(c)}} according to
 \href{https://arxiv.org/abs/2004.03503}{Theorem 6 from references}.
 }
 \description{
-Calculate orthogonal matrix U_Gamma for decomposition in
+Calculate the orthogonal matrix \code{U_Gamma} for decomposition in
 \href{https://arxiv.org/abs/2004.03503}{Theorem 1 from references}.
 }
 \details{
 Given X - a matrix invariant under the permutation \code{perm}. Call Gamma
-the permutations cyclic group \eqn{<perm> = \{perm, perm^2, ...\}}.
+the permutations cyclic group: \eqn{\Gamma = <perm> = \{perm, perm^2, ...\}}.
 
-Then, U_Gamma is such an orthogonal matrix, which block-diagonalizes X.
+Then, \eqn{U_\Gamma} is such an orthogonal matrix, which block-diagonalizes X.
 
 To be more precise, the matrix \code{t(U_Gamma) \%*\% X \%*\% U_Gamma} has a
 block-diagonal structure, which is ensured by
-\href{https://arxiv.org/abs/2004.03503}{Theorem 1 from references}
+\href{https://arxiv.org/abs/2004.03503}{Theorem 1 from references}.
 
-Formula for U_Gamma can be found in
+The formula for \code{U_Gamma} can be found in
 \href{https://arxiv.org/abs/2004.03503}{Theorem 6 from references}.
+
+A nice example is demonstrated in the \strong{Block Decomposition - [1], Theorem 1}
+section of \code{vignette("Theory", package="gips")} or its
+\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}.
 }
 \examples{
 gperm <- gips_perm("(1,2,3)(4,5)", 5)
@@ -61,7 +67,7 @@ The Annals of Statistics, 50(3) 1747-1774 June 2022.
 to show the properties of \code{prepare_orthogonal_matrix()}.
 \item \strong{Block Decomposition - [1], Theorem 1} section of
 \code{vignette("Theory", package = "gips")} or its
-\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}) -
+\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page} -
 A place to learn more about the math behind the \code{gips} package
 and see more examples of \code{prepare_orthogonal_matrix()}.
 }
