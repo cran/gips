@@ -1,6 +1,6 @@
-27d07ff14955c1533b5f8c499b704cda *DESCRIPTION
+3bc5a62088b99e0f90f6493d44faeec0 *DESCRIPTION
 600e3b75410d3cd8942d31342e6e4b65 *NAMESPACE
-4b96bd927aa8416b16c76f6330355179 *NEWS.md
+0de3d65a80ea9c40d89fb5ca0b2848ef *NEWS.md
 937683706843d2c7ecdf1fb19d68704c *R/calculate_gamma_function.R
 a987de1fc6f5ecc2a15722861f511f54 *R/estimate_probabilities.R
 0051b3cc092b5f25a6b923ada48b5c1e *R/find_MAP.R
@@ -15,16 +15,16 @@ b2a0f4ae49760eee0b14e45b1588ffab *R/utils.R
 45e82ca08b5b63ae22a37453be38ce5e *README.md
 ea124a494ad7922985532ad3b308e4d5 *build/partial.rdb
 3f48b87063b8fd9a4111414f7c211b11 *build/vignette.rds
-16f8ad9504070d165222f3029c46eb49 *inst/WORDLIST
+61b3e4626871f4fcbfb6e41eb86db168 *inst/WORDLIST
 1347f5f6038a610c027ef1e9323c53d4 *inst/doc/Optimizers.R
 9abc2758cf194ec5e9f9991828f0bc56 *inst/doc/Optimizers.Rmd
-af76c1cbec75a24efcf7225ca01fddd5 *inst/doc/Optimizers.html
+2b2008e1fa2831b3928ed1921bb6e0b3 *inst/doc/Optimizers.html
 43a62f3e9cf806a284ff7e001b5f3252 *inst/doc/Theory.R
 4ae0181ebb9bea30bf5bc2965dc69bc1 *inst/doc/Theory.Rmd
 da9923cee3e2a003df6a860b9c2bf666 *inst/doc/Theory.html
 851d3d0ece4a07b4a55b12e413031f67 *inst/doc/gips.R
 1c901b670ef74738218505d31e5c8d7d *inst/doc/gips.Rmd
-ea7c2eb4b3cf7f0f09ee9e3d27234925 *inst/doc/gips.html
+84bf81ebf9c441290aa3cae0124aeec7 *inst/doc/gips.html
 e6b0af445f4c8a9c7933ddc8d82cdd57 *man/AIC.gips.Rd
 47ee1af4840f60fffe61d1e12bd2236d *man/as.character.gips.Rd
 3ef36e98b9f3479b692487b92f708e6f *man/as.character.gips_perm.Rd
@@ -60,7 +60,7 @@ d1b235c76d128dd7bddc720510916830 *tests/testthat/test-calculate_gamma_function.R
 a40e0775d77b296324c169bd3551444e *tests/testthat/test-find_MAP.R
 b702848f5c9fa6997d8e068100e49754 *tests/testthat/test-get_coprimes.R
 a1713a80f17421c164fd84ed2ac90d95 *tests/testthat/test-get_structure_constants.R
-fe715249d361260e492ea820738c54ea *tests/testthat/test-gips_class.R
+65bc0317aca8fcb2298b67a66c6bdf0d *tests/testthat/test-gips_class.R
 3ed5b703194bce0b15490fd0d583f2cb *tests/testthat/test-gips_perm_class.R
 8937880b82700e8c20223e114cb39924 *tests/testthat/test-log_posteriori_of_gips.R
 507f2d56f98debb67ba150b7da2f7eeb *tests/testthat/test-prepare_orthogonal_matrix.R
