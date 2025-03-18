@@ -55,11 +55,9 @@ get_structure_constants <- function(perm) {
   )
 
   r <- calculate_r(cycle_lengths, perm_order)
-  d <- calculate_d(perm_order)
+  L <- length(r)
+  d <- calculate_d(L, perm_order)
 
-  L <- sum(r > 0)
-  d <- d[r > 0]
-  r <- r[r > 0]
   k <- d
   dim_omega <- r + r * (r - 1) * d / 2
 
@@ -93,8 +91,11 @@ get_cycle_representatives_and_lengths <- function(perm) {
 }
 
 #' Calculate structure constant r
+#' Utilizes the sparsity for the `r_alfa` to speed up the computation.
+#' The vector `r_alfa` is sorted by the value of the `alpha`.
+#' Meaning the first element is the `r_alpha` for `alpha` = 0.
 #'
-#' @returns An integer vector. Structure constant r WITH elements equal to 0.
+#' @returns An integer vector. Structure constant r already without 0 elements.
 #' @noRd
 calculate_r <- function(cycle_lengths, perm_order) {
   M <- floor(perm_order / 2)
@@ -102,36 +103,44 @@ calculate_r <- function(cycle_lengths, perm_order) {
     # identity function
     return(length(cycle_lengths))
   }
-  # for a in 0,1,...,floor(perm_order/2)
-  # r_a = #{1:C such that a*p_c is a multiple of N}
-  # AKA a*p_c %% N == 0
-
-  # Corollary: N %% p_c == 0 for each p_c, cause N is LCM of all p_c
+  # for alpha in 0,1,...,floor(perm_order/2)
+  # r_{alpha} = #{1:C such that alpha*p_c is a multiple of N}
+  # alpha*p_c is a multiple of N iff alpha*p_c %% N == 0
+  # Now, N is the Least Common Multiplier of all p_c
+  # Which means, that N %% p_c == 0 for every p_c
+  # In other words, N / p_c is an integer
   multiples <- round(perm_order / cycle_lengths) # the result of division should be an integer, but floats may interfere
 
-  # Now we have to adjust for 2 cases:
-  # 1) some alphas are too large
-  # 2) some alphas are so small, that we can include their multiples
-  #   (if a*p_c %% N == 0, then for any natural k  k*a*p_c %% N == 0)
-  alphas <- unlist(lapply(multiples, function(cycle_multiple) {
-    max_multiple <- floor(M / cycle_multiple)
-    cycle_multiple * 0:max_multiple
-  }))
+  # Since N/p_c is an integer, alpha*p_c %% N == 0 iff alpha %% (N/p_c) == 0
+  # In other words, alpha must be a multiple of (N/p_1, N/p_2,...,N/p_C)
+  # (alpha = k*(N/p_1) or k*(N/p_2) or ... or k*(N/p_C) for some integer k (including 0))
+  # However, alpha must be at most M, and a valid bound from above for integer k is max(p_1,...,p_C).
+  max_order <- max(cycle_lengths)
+  
+  # Here we create all possible alpha values. 
+  # The `multiples` corresponds to N/p_1,...,N/p_C, and `0:max_order` are possible integers k.
+  # Use the outer product to get all pairwise multiplications
+  alpha_matrix <- multiples %*% t(0:max_order)
 
-  alpha_count <- table(alphas)
-  r <- rep(0, M + 1)
-  r[as.double(names(alpha_count)) + 1] <- as.double(alpha_count)
-  r
+  # sort is in ascending order, which means smallest alphas go to start.
+  # The end result is as if we iterated over each alpha value (in ascending order),
+  # and then deleted entries with 0s.
+  possible_alphas <- unique(sort(alpha_matrix[alpha_matrix <= M]))
+
+  # Recalculate the r_alpha vector using its definition directly.
+  r_alfa <- sapply(possible_alphas, function(alpha) sum(alpha %% multiples == 0))
+  as.double(r_alfa)
 }
 
-#' Calculate structure constant d
+#' Calculate structure constant d.
+#' Utilizing the structure of `r_alfa` vector.
 #'
 #' @noRd
-calculate_d <- function(perm_order) {
-  M <- floor(perm_order / 2)
-  d <- c(1, rep(2, M))
+calculate_d <- function(r_len, perm_order) {
+  d <- rep(2, r_len)
+  d[1] <- 1
   if (perm_order %% 2 == 0) {
-    d[M + 1] <- 1
+    d[r_len] <- 1
   }
   d
 }

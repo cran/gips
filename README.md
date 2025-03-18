@@ -11,6 +11,8 @@ stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://
 status](https://www.r-pkg.org/badges/version/gips)](https://CRAN.R-project.org/package=gips)
 [![R-CMD-check](https://github.com/PrzeChoj/gips/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/PrzeChoj/gips/actions/workflows/R-CMD-check.yaml)
 [![test-coverage](https://codecov.io/gh/PrzeChoj/gips/branch/main/graph/badge.svg)](https://app.codecov.io/gh/PrzeChoj/gips?branch=main)
+![RStudio CRAN mirror
+downloads](http://cranlogs.r-pkg.org/badges/last-month/gips)
 
 <!-- badges: end -->
 
@@ -264,8 +266,8 @@ page](https://przechoj.github.io/gips/articles/gips.html).
 For an in-depth analysis of the package performance, capabilities, and
 comparison with similar packages, see the article “Learning permutation
 symmetries with gips in R” by `gips` developers Adam Chojecki, Paweł
-Morgen, and Bartosz Kołodziejek, available on
-[arXiv:2307.00790](https://arxiv.org/abs/2307.00790).
+Morgen, and Bartosz Kołodziejek, [Journal of Statistical
+Software](doi:10.18637/jss.v112.i07).
 
 # Acknowledgment
 

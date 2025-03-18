@@ -1,4 +1,4 @@
-## ---- include = FALSE---------------------------------------------------------
+## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk[["set"]](
   collapse = TRUE,
   comment = "#>",
@@ -116,7 +116,7 @@ Z <- withr::with_seed(2022,
 )
 # End of prepare model
 
-## ---- example2_readme2--------------------------------------------------------
+## ----example2_readme2---------------------------------------------------------
 dim(Z)
 number_of_observations <- nrow(Z) # 4
 p <- ncol(Z) # 6
@@ -132,7 +132,7 @@ print(g_map)
 
 S_projected <- project_matrix(S, g_map)
 
-## ---- example2_readme3, echo=FALSE--------------------------------------------
+## ----example2_readme3, echo=FALSE---------------------------------------------
 gips:::pretty_plot_matrix(S_projected, title = "S_projected matrix")
 
 ## ----example3_1---------------------------------------------------------------
@@ -160,7 +160,7 @@ Z <- withr::with_seed(2022,
 )
 # End of prepare model
 
-## ---- example3_2--------------------------------------------------------------
+## ----example3_2---------------------------------------------------------------
 dim(Z)
 number_of_observations <- nrow(Z) # 7
 p <- ncol(Z) # 6
@@ -170,7 +170,7 @@ S <- (t(Z) %*% Z) / number_of_observations
 g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
 g_map <- find_MAP(g, optimizer = "brute_force")
 
-## ---- example3_3--------------------------------------------------------------
+## ----example3_3---------------------------------------------------------------
 AIC(g)
 AIC(g_map) # this is smaller, so this is better
 

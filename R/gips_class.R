@@ -68,7 +68,7 @@
 #' For analysis of the Hyperparameters influence, see **Section 3.2.**
 #' of "Learning permutation symmetries with gips in R"
 #' by `gips` developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek,
-#' available on [arXiv:2307.00790](https://arxiv.org/abs/2307.00790).
+#' [Journal of Statistical Software](<doi:10.18637/jss.v112.i07>).
 #'
 #' @returns `gips()` returns an object of
 #'     a `gips` class after the safety checks.
@@ -276,7 +276,7 @@ validate_gips <- function(g) {
   }
 
   if (is.list(optimization_info)) { # Validate the `optimization_info` after the optimization
-    legal_fields <- c("original_perm", "acceptance_rate", "log_posteriori_values", "visited_perms", "start_perm", "last_perm", "last_perm_log_posteriori", "iterations_performed", "optimization_algorithm_used", "post_probabilities", "did_converge", "best_perm_log_posteriori", "optimization_time", "whole_optimization_time")
+    legal_fields <- c("original_perm", "acceptance_rate", "log_posteriori_values", "visited_perms", "start_perm", "last_perm", "last_perm_log_posteriori", "iterations_performed", "optimization_algorithm_used", "post_probabilities", "did_converge", "best_perm_log_posteriori", "optimization_time", "whole_optimization_time", "all_n0")
 
     lacking_fields <- setdiff(legal_fields, names(optimization_info))
     illegal_fields <- setdiff(names(optimization_info), legal_fields)
@@ -302,13 +302,13 @@ validate_gips <- function(g) {
     if (length(abort_text) > 0) {
       rlang::abort(c("There was a problem with the 'optimization_info' attribute.",
         "i" = paste0(
-          "After optimiation, `attr(g, 'optimization_info')` must be a list of ",
+          "After optimization, `attr(g, 'optimization_info')` must be a list of ",
           length(legal_fields), " elements with names: ",
           paste(legal_fields, collapse = ", "), "."
         ),
         "x" = paste0("You have a list of ", length(names(optimization_info)), " elements."),
         abort_text,
-        "i" = "Did You accidentally edited `attr(g, 'optimization_info')` by yourself?",
+        "i" = "Did You accidentally edit `attr(g, 'optimization_info')` by yourself?",
         "i" = "Did You accidentally set one of `attr(g, 'optimization_info')` elements to `NULL` or `NA`?"
       ))
     }
@@ -510,7 +510,7 @@ validate_gips <- function(g) {
       !(all(is.na(optimization_info[["visited_perms"]])) || is.null(optimization_info[["post_probabilities"]]) ||
         length(optimization_info[["post_probabilities"]]) <= length(optimization_info[["visited_perms"]]))) {
       abort_text <- c(abort_text,
-        "i" = "Every element of `attr(g, 'optimization_info')[['post_probabilities']]` was taken from a visided permutation, so it is in `attr(g, 'optimization_info')[['visited_perms']]`.",
+        "i" = "Every element of `attr(g, 'optimization_info')[['post_probabilities']]` was taken from a visited permutation, so it is in `attr(g, 'optimization_info')[['visited_perms']]`.",
         "x" = paste0(
           "You have `length(attr(g, 'optimization_info')[['visited_perms']]) == ",
           length(optimization_info[["post_probabilities"]]),
@@ -586,8 +586,8 @@ validate_gips <- function(g) {
       abort_text <- c(abort_text,
         "i" = "`attr(g, 'optimization_info')[['optimization_time']]` is initially set to `NA`, but that state of the gips object should not be available to the user.",
         "x" = "You have `is.na(attr(g, 'optimization_info')[['optimization_time']]) == TRUE`.",
-        "i" = "Did You used the inner optimizers like `gips:::Metropolis_Hastings()` or `gips:::hill_climbing()` in stead of the exported function `gips::find_MAP()`?",
-        "i" = "Did You modified the `find_MAP()` function?"
+        "i" = "Did You use the inner optimizers like `gips:::Metropolis_Hastings()` or `gips:::hill_climbing()` in stead of the exported function `gips::find_MAP()`?",
+        "i" = "Did You modify the `find_MAP()` function?"
       )
     } else if (!inherits(optimization_info[["optimization_time"]], "difftime")) {
       abort_text <- c(abort_text,
@@ -611,8 +611,8 @@ validate_gips <- function(g) {
       abort_text <- c(abort_text,
         "i" = "`attr(g, 'optimization_info')[['whole_optimization_time']]` is initially set to `NA`, but that state of the gips object should not be available to the user.",
         "x" = "You have `is.na(attr(g, 'optimization_info')[['whole_optimization_time']]) == TRUE`.",
-        "i" = "Did You used the inner optimizers like `gips:::Metropolis_Hastings()` or `gips:::hill_climbing()` in stead of the exported function `gips::find_MAP()`?",
-        "i" = "Did You modified the `find_MAP()` function?"
+        "i" = "Did You use the inner optimizers like `gips:::Metropolis_Hastings()` or `gips:::hill_climbing()` in stead of the exported function `gips::find_MAP()`?",
+        "i" = "Did You modify the `find_MAP()` function?"
       )
     } else if (!inherits(optimization_info[["whole_optimization_time"]], "difftime")) {
       abort_text <- c(abort_text,
@@ -658,7 +658,7 @@ validate_gips <- function(g) {
       }
 
       abort_text <- c(abort_text,
-        "i" = "Did You accidentally edited `attr(g, 'optimization_info')` by yourself?",
+        "i" = "Did You accidentally edit `attr(g, 'optimization_info')` by yourself?",
         ">" = "If You think You've found a bug in a package, please open an ISSUE on https://github.com/PrzeChoj/gips/issues"
       )
 
@@ -704,7 +704,7 @@ check_correctness_of_arguments <- function(S, number_of_observations, max_iter,
     abort_text <- c(abort_text,
       "i" = "`S` matrix must be a symmetric matrix.",
       "x" = "You provided `S` as a matrix, but a non-symmetric one.",
-      "i" = "Is your matrix approximatelly symmetric? Maybe try setting `S <- (S+t(S))/2`?"
+      "i" = "Is your matrix approximately symmetric? Maybe try setting `S <- (S+t(S))/2`?"
     )
     additional_info <- additional_info + 1 # for calculation of the number of problems
   } else if (!is.positive.semi.definite.matrix(S, tolerance = 1e-06)) {
@@ -875,7 +875,7 @@ check_correctness_of_arguments <- function(S, number_of_observations, max_iter,
     abort_text <- c(
       paste0(
         "There were ", (length(abort_text) - additional_info) / 2,
-        " problems identified with provided arguments:"
+        " problems identified with the provided arguments:"
       ),
       abort_text
     )
@@ -896,14 +896,14 @@ check_correctness_of_arguments <- function(S, number_of_observations, max_iter,
   }
 
   if (return_probabilities && !save_all_perms) {
-    rlang::abort(c("There was a problem identified with provided arguments:",
+    rlang::abort(c("There was a problem identified with the provided arguments:",
       "i" = "For calculations of probabilities, all perms have to be available after the optimization process.",
       "x" = "You provided `return_probabilities == TRUE` and `save_all_perms == FALSE`!",
       "i" = "Did You want to set `save_all_perms = TRUE`?",
       "i" = "Did You want to set `return_probabilities = FALSE`?",
       "!" = paste0(
         "Remember that setting `return_probabilities == TRUE` can be computationally costly",
-        ifelse(show_progress_bar, " and second prograss bar will be shown.", ".")
+        ifelse(show_progress_bar, " and second progress bar will be shown.", ".")
       )
     ))
   }
@@ -1083,7 +1083,7 @@ convert_log_diff_to_str <- function(log_diff, digits) {
 #'
 #' @param x Object of a `gips` class.
 #' @param type A character vector of length 1. One of
-#'     `c("heatmap", "MLE", "best", "all", "both", "block_heatmap")`:
+#'     `c("heatmap", "MLE", "best", "all", "both", "n0", "block_heatmap")`:
 #'   * `"heatmap"`, `"MLE"` - Plots a heatmap of the Maximum Likelihood
 #'       Estimator of the covariance matrix given the permutation.
 #'       That is, the `S` matrix inside the `gips` object
@@ -1091,6 +1091,8 @@ convert_log_diff_to_str <- function(log_diff, digits) {
 #'   * `"best"` - Plots the line of the biggest a posteriori found over time.
 #'   * `"all"` - Plots the line of a posteriori for all visited states.
 #'   * `"both"` - Plots both lines from "all" and "best".
+#'   * `"n0"` - Plots the line of `n0`s that were spotted during optimization
+#'       (only for "MH" optimization).
 #'   * `"block_heatmap"` - Plots a heatmap of diagonally block representation of `S`.
 #'       Non-block entries (equal to 0) are white for better clarity.
 #'       For more information, see **Block Decomposition - \[1\], Theorem 1**
@@ -1116,7 +1118,7 @@ convert_log_diff_to_str <- function(log_diff, digits) {
 #' @param ... Additional arguments passed to
 #'     other various elements of the plot.
 #'
-#' @returns When `type` is one of `"best"`, `"all"` or `"both"`,
+#' @returns When `type` is one of `"best"`, `"all"`, `"both"` or `"n0"`,
 #'     returns an invisible `NULL`.
 #'     When `type` is one of `"heatmap"`, `"MLE"` or `"block_heatmap"`,
 #'     returns an object of class `ggplot`.
@@ -1165,6 +1167,11 @@ convert_log_diff_to_str <- function(log_diff, digits) {
 #' }
 #' # Now, the output is (most likely) different because the permutation
 #'   # `g_map[[1]]` is (most likely) not an identity permutation.
+#' 
+#' g_map_MH <- find_MAP(g, max_iter = 30, show_progress_bar = FALSE, optimizer = "MH")
+#' if (require("graphics")) {
+#'   plot(g_map_MH, type = "n0")
+#' }
 plot.gips <- function(x, type = NA,
                       logarithmic_y = TRUE, logarithmic_x = FALSE,
                       color = NULL,
@@ -1174,7 +1181,7 @@ plot.gips <- function(x, type = NA,
                       ylim = NULL, xlim = NULL, ...) {
   # checking the correctness of the arguments:
   if (!requireNamespace("graphics", quietly = TRUE)) {
-    rlang::abort(c("There was a problem identified with provided arguments:",
+    rlang::abort(c("There was a problem identified with the provided arguments:",
       "i" = "Package 'graphics' must be installed to use this function.",
       "x" = "Package 'graphics' seems to be unavailable."
     ))
@@ -1183,7 +1190,7 @@ plot.gips <- function(x, type = NA,
   validate_gips(x)
 
   if (length(type) != 1) {
-    rlang::abort(c("There was a problem identified with provided arguments:",
+    rlang::abort(c("There was a problem identified with the provided arguments:",
       "i" = "`type` must be an character vector of length 1.",
       "x" = paste0("You provided `type` with length ", length(type), " which is wrong!")
     ))
@@ -1206,9 +1213,9 @@ plot.gips <- function(x, type = NA,
     type <- "heatmap"
   }
 
-  if (!(type %in% c("heatmap", "block_heatmap", "all", "best", "both"))) {
-    rlang::abort(c("There was a problem identified with provided arguments:",
-      "i" = "`type` must be one of: c('heatmap', 'MLE', 'block_heatmap', 'all', 'best', 'both').",
+  if (!(type %in% c("heatmap", "block_heatmap", "all", "best", "both", "n0"))) {
+    rlang::abort(c("There was a problem identified with the provided arguments:",
+      "i" = "`type` must be one of: c('heatmap', 'MLE', 'block_heatmap', 'all', 'best', 'both', 'n0').",
       "x" = paste0("You provided `type == ", type, "`."),
       "i" = "Did You misspell the 'type' argument?"
     ))
@@ -1218,7 +1225,7 @@ plot.gips <- function(x, type = NA,
     is.null(attr(x, "optimization_info"))) {
     rlang::abort(
       c(
-        "There was a problem identified with provided arguments:",
+        "There was a problem identified with the provided arguments:",
         "i" = "For non-optimized `gips` objects only the `type = 'heatmap', 'MLE' or 'block_heatmap'` can be used.",
         "x" = paste0(
           "You did not optimized `x` and provided `type = '",
@@ -1421,6 +1428,83 @@ plot.gips <- function(x, type = NA,
       )
     }
   }
+  if (type == "n0") {
+    if (is.null(ylabel)) {
+      ylabel <- ifelse(logarithmic_y,
+        "log n0",
+        "n0"
+      )
+    }
+    if (is.null(xlabel)) {
+      xlabel <- ifelse(logarithmic_x,
+        "log10 of number of function calls",
+        "number of function calls"
+      )
+    }
+    if (is.null(color)) {
+      color <- "red"
+    }
+    
+    if (logarithmic_y) {
+      y_values <- log(attr(x, "optimization_info")[["all_n0"]])
+    } else {
+      y_values <- attr(x, "optimization_info")[["all_n0"]]
+    }
+    
+    num_of_steps <- length(y_values)
+    
+    if (is.null(xlim)) {
+      xlim <- c(1, num_of_steps)
+    }
+    
+    if (is.null(ylim)) {
+      ylim_plot <- c(0, max(y_values))
+    } else {
+      ylim_plot <- ylim
+    }
+    
+    # make the plot stairs-like
+    x_points <- c(1, rep(2:num_of_steps, each = 2))
+    
+    if (logarithmic_x) {
+      x_points <- log10(x_points)
+      xlim <- log10(xlim)
+    }
+    
+    graphics::plot.new()
+    graphics::plot.window(xlim, ylim_plot)
+    
+    # make the plot stairs-like
+    y_points <- c(
+      rep(y_values[1:(length(y_values) - 1)], each = 2),
+      y_values[length(y_values)]
+    )
+    
+    graphics::lines.default(x_points, y_points,
+      type = "l", lwd = 3,
+      col = color[1], # the first color
+      ...
+    )
+    
+    graphics::title(main = title_text, xlab = xlabel, ylab = ylabel, ...)
+    graphics::axis(1, ...)
+    graphics::axis(2, ...)
+    graphics::box(...)
+    
+    if (show_legend) {
+      legend_text <- "all perms n0"
+      lty <- c(1, 1)
+      lwd <- c(3, 3)
+      
+      graphics::legend("topright",
+                       inset = .002,
+                       legend = legend_text,
+                       col = color,
+                       lty = lty, lwd = lwd,
+                       cex = 0.7, box.lty = 0
+      )
+    }
+  }
 
   invisible(NULL)
 }
@@ -1472,26 +1556,33 @@ get_diagonalized_matrix_for_heatmap <- function(g) {
 #'       It can be less than 1, meaning the identity permutation
 #'       is more likely. Remember that this number can big and
 #'       overflow to `Inf` or small and underflow to 0.
-#'   5. `n0` - the minimum number of observations needed for
+#'   5. `log_times_more_likely_than_id` - log of `times_more_likely_than_id`.
+#'   6. `likelihood_ratio_test_statistics`, `likelihood_ratio_test_p_value` - 
+#'       statistics and p-value of Likelihood Ratio test, where
+#'       the H_0 is that the data was drawn from the normal distribution
+#'       with Covariance matrix invariant under the given permutation.
+#'       The p-value is calculated from the asymptotic distribution.
+#'       Note that this is sensibly defined only for \eqn{n \ge p}.
+#'   7. `n0` - the minimum number of observations needed for
 #'       the covariance matrix's maximum likelihood estimator
 #'       (corresponding to a MAP) to exist. See **\eqn{C\sigma} and `n0`**
 #'       section in `vignette("Theory", package = "gips")` or in its
 #'       [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html).
-#'   6. `S_matrix` - the underlying matrix.
+#'   8. `S_matrix` - the underlying matrix.
 #'       This matrix will be used in calculations of
 #'       the posteriori value in [log_posteriori_of_gips()].
-#'   7. `number_of_observations` - the number of observations that
+#'   9. `number_of_observations` - the number of observations that
 #'       were observed for the `S_matrix` to be calculated.
 #'       This value will be used in calculations of
 #'       the posteriori value in [log_posteriori_of_gips()].
-#'   8. `was_mean_estimated` - given by the user while creating the `gips` object:
+#'   10. `was_mean_estimated` - given by the user while creating the `gips` object:
 #'       * `TRUE` means the `S` parameter was the output of [stats::cov()] function;
 #'       * `FALSE` means the `S` parameter was calculated with
 #'           `S = t(X) %*% X / number_of_observations`.
-#'   9. `delta`, `D_matrix` - the hyperparameters of the Bayesian method.
+#'   11. `delta`, `D_matrix` - the hyperparameters of the Bayesian method.
 #'       See the **Hyperparameters** section of [gips()] documentation.
-#'   10. `AIC`, `BIC` - output of [AIC.gips()] and [BIC.gips()] functions.
-#'   11. `n_parameters` - number of free parameters in the covariance matrix.
+#'   12. `n_parameters` - number of free parameters in the covariance matrix.
+#'   13. `AIC`, `BIC` - output of [AIC.gips()] and [BIC.gips()] functions.
 #' * For optimized `gips` object:
 #'   1. `optimized` - `TRUE`.
 #'   2. `found_permutation` - the permutation this `gips` represents.
@@ -1506,46 +1597,56 @@ get_diagonalized_matrix_for_heatmap <- function(g) {
 #'       the `found_permutation` is over the `start_permutation`.
 #'       It cannot be a number less than 1.
 #'       Remember that this number can big and overflow to `Inf`.
-#'   7. `n0` - the minimal number of observations needed for the existence of
+#'   7. `log_times_more_likely_than_start` - log of
+#'       `times_more_likely_than_start`.
+#'   8. `likelihood_ratio_test_statistics`, `likelihood_ratio_test_p_value` - 
+#'       statistics and p-value of Likelihood Ratio test, where
+#'       the H_0 is that the data was drawn from the normal distribution
+#'       with Covariance matrix invariant under `found_permutation`.
+#'       The p-value is calculated from the asymptotic distribution.
+#'       Note that this is sensibly defined only for \eqn{n \ge p}.
+#'   9. `n0` - the minimal number of observations needed for the existence of
 #'       the maximum likelihood estimator (corresponding to a MAP) of
 #'       the covariance matrix (see **\eqn{C\sigma} and `n0`**
 #'       section in `vignette("Theory", package = "gips")` or in its
 #'       [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)).
-#'   8. `S_matrix` - the underlying matrix.
+#'   10. `S_matrix` - the underlying matrix.
 #'       This matrix will be used in calculations of
 #'       the posteriori value in [log_posteriori_of_gips()].
-#'   9. `number_of_observations` - the number of observations that
+#'   11. `number_of_observations` - the number of observations that
 #'       were observed for the `S_matrix` to be calculated.
 #'       This value will be used in calculations of
 #'       the posteriori value in [log_posteriori_of_gips()].
-#'   10. `was_mean_estimated` - given by the user while creating the `gips` object:
+#'   12. `was_mean_estimated` - given by the user while creating the `gips` object:
 #'       * `TRUE` means the `S` parameter was output of the [stats::cov()] function;
 #'       * `FALSE` means the `S` parameter was calculated with
 #'           `S = t(X) %*% X / number_of_observations`.
-#'   11. `delta`, `D_matrix` - the hyperparameters of the Bayesian method.
+#'   13. `delta`, `D_matrix` - the hyperparameters of the Bayesian method.
 #'       See the **Hyperparameters** section of [gips()] documentation.
-#'   12. `AIC`, `BIC` - output of [AIC.gips()] and [BIC.gips()] functions.
-#'   13. `n_parameters` - number of free parameters in the covariance matrix.
-#'   14. `optimization_algorithm_used` - all used optimization algorithms
+#'   14. `n_parameters` - number of free parameters in the covariance matrix.
+#'   15. `AIC`, `BIC` - output of [AIC.gips()] and [BIC.gips()] functions.
+#'   16. `optimization_algorithm_used` - all used optimization algorithms
 #'       in order (one could start optimization with "MH", and then
 #'       do an "HC").
-#'   15. `did_converge` - a boolean, did the last used algorithm converge.
-#'   16. `number_of_log_posteriori_calls` - how many times was
+#'   17. `did_converge` - a boolean, did the last used algorithm converge.
+#'   18. `number_of_log_posteriori_calls` - how many times was
 #'       the [log_posteriori_of_gips()] function called during
 #'       the optimization.
-#'   17. `whole_optimization_time` - how long was the optimization process;
+#'   19. `whole_optimization_time` - how long was the optimization process;
 #'       the sum of all optimization times (when there were multiple).
-#'   18. `log_posteriori_calls_after_best` - how many times was
+#'   20. `log_posteriori_calls_after_best` - how many times was
 #'       the [log_posteriori_of_gips()] function called after
 #'       the `found_permutation`; in other words, how long ago
 #'       could the optimization be stopped and have the same result.
 #'       If this value is small, consider running [find_MAP()]
 #'       again with `optimizer = "continue"`.
 #'       For `optimizer = "BF"`, it is `NULL`.
-#'   19. `acceptance_rate` - only interesting for `optimizer = "MH"`.
+#'   21. `acceptance_rate` - only interesting for `optimizer = "MH"`.
 #'       How often was the algorithm accepting the change of permutation
 #'       in an iteration.
 #' @export
+#' 
+#' @importFrom stats pchisq
 #'
 #' @seealso
 #' * [find_MAP()] - Usually, the `summary.gips()`
@@ -1564,12 +1665,12 @@ get_diagonalized_matrix_for_heatmap <- function(g) {
 #' mu <- runif(6, -10, 10) # Assume we don't know the mean
 #' sigma_matrix <- matrix(
 #'   data = c(
-#'     1.0, 0.8, 0.6, 0.4, 0.6, 0.8,
-#'     0.8, 1.0, 0.8, 0.6, 0.4, 0.6,
-#'     0.6, 0.8, 1.0, 0.8, 0.6, 0.4,
-#'     0.4, 0.6, 0.8, 1.0, 0.8, 0.6,
-#'     0.6, 0.4, 0.6, 0.8, 1.0, 0.8,
-#'     0.8, 0.6, 0.4, 0.6, 0.8, 1.0
+#'     1.1, 0.8, 0.6, 0.4, 0.6, 0.8,
+#'     0.8, 1.1, 0.8, 0.6, 0.4, 0.6,
+#'     0.6, 0.8, 1.1, 0.8, 0.6, 0.4,
+#'     0.4, 0.6, 0.8, 1.1, 0.8, 0.6,
+#'     0.6, 0.4, 0.6, 0.8, 1.1, 0.8,
+#'     0.8, 0.6, 0.4, 0.6, 0.8, 1.1
 #'   ),
 #'   nrow = perm_size, byrow = TRUE
 #' ) # sigma_matrix is a matrix invariant under permutation (1,2,3,4,5,6)
@@ -1578,6 +1679,7 @@ get_diagonalized_matrix_for_heatmap <- function(g) {
 #' S <- cov(Z) # Assume we have to estimate the mean
 #'
 #' g <- gips(S, number_of_observations)
+#' unclass(summary(g))
 #'
 #' g_map <- find_MAP(g, max_iter = 10, show_progress_bar = FALSE, optimizer = "Metropolis_Hastings")
 #' unclass(summary(g_map))
@@ -1591,8 +1693,25 @@ summary.gips <- function(object, ...) {
   tmp <- get_n0_and_edited_number_of_observations_from_gips(object)
   n0 <- tmp[1]
   edited_number_of_observations <- tmp[2]
-
+  
   n_parameters <- sum(get_structure_constants(object[[1]])[["dim_omega"]])
+  
+  # Likelihood-Ratio test:
+  if (edited_number_of_observations < n0 || !is.positive.definite.matrix(attr(object, "S"))) {
+    likelihood_ratio_test_statistics <- NULL
+    likelihood_ratio_test_p_value <- NULL
+  } else {
+    likelihood_ratio_test_statistics <- edited_number_of_observations*(determinant(project_matrix(attr(object, "S"), object[[1]]))$modulus - determinant(attr(object, "S"))$modulus)
+    attributes(likelihood_ratio_test_statistics) <- NULL
+    p <- attr(object[[1]], "size")
+    df_chisq <- p*(p+1)/2 - n_parameters
+    if (df_chisq == 0) {
+      likelihood_ratio_test_p_value <- NULL
+    } else {
+      # when likelihood_ratio_test_statistics is close to 0, the H_0
+      likelihood_ratio_test_p_value <- 1 - pchisq(likelihood_ratio_test_statistics, df_chisq)
+    }
+  }
 
   if (is.null(attr(object, "optimization_info"))) {
     log_posteriori_id <- log_posteriori_of_perm(
@@ -1607,6 +1726,8 @@ summary.gips <- function(object, ...) {
       start_permutation_log_posteriori = permutation_log_posteriori,
       times_more_likely_than_id = exp(permutation_log_posteriori - log_posteriori_id),
       log_times_more_likely_than_id = permutation_log_posteriori - log_posteriori_id,
+      likelihood_ratio_test_statistics = likelihood_ratio_test_statistics,
+      likelihood_ratio_test_p_value = likelihood_ratio_test_p_value,
       n0 = n0,
       S_matrix = attr(object, "S"),
       number_of_observations = attr(object, "number_of_observations"),
@@ -1644,7 +1765,7 @@ summary.gips <- function(object, ...) {
       )
       start_permutation_log_posteriori <- log_posteriori_of_gips(gips_start)
     }
-
+    
     summary_list <- list(
       optimized = TRUE,
       found_permutation = object[[1]],
@@ -1653,6 +1774,8 @@ summary.gips <- function(object, ...) {
       start_permutation_log_posteriori = start_permutation_log_posteriori,
       times_more_likely_than_start = exp(permutation_log_posteriori - start_permutation_log_posteriori),
       log_times_more_likely_than_start = permutation_log_posteriori - start_permutation_log_posteriori,
+      likelihood_ratio_test_statistics = likelihood_ratio_test_statistics,
+      likelihood_ratio_test_p_value = likelihood_ratio_test_p_value,
       n0 = n0,
       S_matrix = attr(object, "S"),
       number_of_observations = attr(object, "number_of_observations"),
@@ -1721,6 +1844,15 @@ print.summary.gips <- function(x, ...) {
         )
       )
     ),
+    ifelse(is.null(x[["likelihood_ratio_test_statistics"]]),
+      ifelse(is.positive.definite.matrix(x[["S_matrix"]]),
+        "\n\ndet(S) == 0, so Likelihood-Ratio test cannot be performed",
+        "\n\nn0 > number_of_observations, so Likelihood-Ratio test cannot be performed"
+      ),
+      ifelse(is.null(x[["likelihood_ratio_test_p_value"]]),
+        "\n\nThe current permutation is id, so Likelihood-Ratio test cannot be performed (there is nothing to compare)",
+        paste0("\n\nThe p-value of Likelihood-Ratio test:\n ", format(x[["likelihood_ratio_test_p_value"]], digits = 4)))
+      ),
     "\n\nThe number of observations:\n ", x[["number_of_observations"]],
     "\n\n", ifelse(x[["was_mean_estimated"]],
       paste0(
@@ -1813,17 +1945,30 @@ print.summary.gips <- function(x, ...) {
 #' @noRd
 get_n0_and_edited_number_of_observations_from_gips <- function(g) {
   # validate_gips(g) # TODO(Make sure all uses of `get_n0_and_edited_number_of_observations_from_gips()` are on already validated g)
-
-  structure_constants <- get_structure_constants(g[[1]])
-  n0 <- max(structure_constants[["r"]] * structure_constants[["d"]] / structure_constants[["k"]])
-
+  
+  n0 <- get_n0_from_perm(g[[1]], attr(g, "was_mean_estimated"))
+  
   edited_number_of_observations <- attr(g, "number_of_observations")
+  
   if (attr(g, "was_mean_estimated")) { # correction for estimating the mean
-    n0 <- n0 + 1
     edited_number_of_observations <- edited_number_of_observations - 1
   }
-
+  
   c(n0, edited_number_of_observations)
+}
+
+#' Internal
+#' @return (integer) n0
+#' @noRd
+get_n0_from_perm <- function(g_perm, was_mean_estimated) {
+  structure_constants <- get_structure_constants(g_perm)
+  n0 <- max(structure_constants[["r"]] * structure_constants[["d"]] / structure_constants[["k"]])
+
+  if (was_mean_estimated) { # correction for estimating the mean
+    n0 <- n0 + 1
+  }
+
+  c(n0)
 }
 
 #' Extract the Log-Likelihood for `gips` class
@@ -1846,6 +1991,10 @@ get_n0_and_edited_number_of_observations_from_gips <- function(g) {
 #' In the `gips` context, such a model exists only when
 #' the number of observations is bigger or equal to `n0`. To get `n0`
 #' for the `gips` object `g`, call `summary(g)$n0`.
+#' 
+#' See examples where the `g_n_too_small` had too small
+#' `number_of_observations` to have likelihood. After the optimization,
+#' the likelihood did exist.
 #'
 #' For more information, refer to **\eqn{C_\sigma} and `n0`** section in
 #' `vignette("Theory", package = "gips")` or its
@@ -1859,11 +2008,12 @@ get_n0_and_edited_number_of_observations_from_gips <- function(g) {
 #'
 #' @importFrom stats logLik
 #'
-#' @returns Log-Likelihood of the sample.
+#' @returns Log-Likelihood of the sample. Object of class `logLik`.
 #'
-#' When the multivariate normal model does not exist
+#' Possible failure situations:
+#' * When the multivariate normal model does not exist
 #'     (`number_of_observations < n0`), it returns `NULL`.
-#' When the multivariate normal model cannot be reasonably approximated
+#' * When the multivariate normal model cannot be reasonably approximated
 #'     (output of [project_matrix()] is singular), it returns `-Inf`.
 #'
 #' In both failure situations, it shows a warning.
@@ -1898,8 +2048,13 @@ get_n0_and_edited_number_of_observations_from_gips <- function(g) {
 #' g_map <- find_MAP(g, optimizer = "brute_force")
 #' logLik(g_map) # -32.6722 # this will always be smaller than `logLik(gips(S, n, perm = ""))`
 #'
-#' g_n_too_small <- gips(S, 4)
+#' g_n_too_small <- gips(S, number_of_observations = 4)
 #' logLik(g_n_too_small) # NULL # the likelihood does not exists
+#' summary(g_n_too_small)$n0 # 5, but we set number_of_observations = 4, which is smaller
+#' 
+#' g_MAP <- find_MAP(g_n_too_small)
+#' logLik(g_MAP) # -24.94048, this is no longer NULL
+#' summary(g_MAP)$n0 # 2
 logLik.gips <- function(object, ...) {
   validate_gips(object)
 
@@ -1930,7 +2085,7 @@ logLik.gips <- function(object, ...) {
   if (is.infinite(log_det_projected_cov)) {
     rlang::warn(c(
       "The projected matrix is computationally singular.",
-      "x" = "The likelihood for singular matrixes cannot be estimated with a satisfying precision.",
+      "x" = "The likelihood for singular matrices cannot be estimated with a satisfying precision.",
       "i" = paste0("Reciprocal condition number = ", rcond(projected_cov), ".")
     ), class = "singular_matrix")
 
@@ -1945,7 +2100,9 @@ logLik.gips <- function(object, ...) {
 
   attr(log_L_S, "df") <- n_parameters
   attr(log_L_S, "nobs") <- n # The AIC and BIC will use n, not edited_number_of_observations
-
+  
+  class(log_L_S) <- "logLik"
+  
   log_L_S
 }
 
@@ -1997,7 +2154,7 @@ logLik.gips <- function(object, ...) {
 #' g_map <- find_MAP(g, optimizer = "brute_force")
 #'
 #' AIC(g) # 238
-#' AIC(g_map) # 224 < 238, so g_map is better than g in AIC
+#' AIC(g_map) # 224 < 238, so g_map is better than g according to AIC
 AIC.gips <- function(object, ..., k = 2) {
   log_likelihood_S <- logLik.gips(object) # in here we will validate object is of class gips
 
@@ -2024,7 +2181,7 @@ AIC.gips <- function(object, ..., k = 2) {
 #' @examples
 #' # ================================================================================
 #' BIC(g) # 244
-#' BIC(g_map) # 226 < 244, so g_map is better than g in BIC
+#' BIC(g_map) # 226 < 244, so g_map is better than g according to BIC
 BIC.gips <- function(object, ...) {
   log_likelihood_S <- logLik.gips(object) # in here we will validate object is of class gips
 
@@ -2077,10 +2234,10 @@ get_probabilities_from_gips <- function(g) {
   validate_gips(g)
 
   if (is.null(attr(g, "optimization_info"))) {
-    rlang::abort(c("There was a problem identified with provided arguments:",
+    rlang::abort(c("There was a problem identified with the provided arguments:",
       "i" = "`gips` objects has to be optimized with `find_MAP(return_probabilities=TRUE)` to use `get_probabilities_from_gips()` function.",
       "x" = "You did not optimized `g`.",
-      "i" = "Did You used the wrong `g` as an argument for this function?",
+      "i" = "Did You use the wrong `g` as an argument for this function?",
       "i" = "Did You forget to optimize `g`?"
     ))
   }
@@ -2089,9 +2246,9 @@ get_probabilities_from_gips <- function(g) {
     rlang::inform(c(
       "You called `get_probabilities_from_gips(g)` on the `gips` object that does not have saved probabilities.",
       "x" = "`NULL` will be returned",
-      "i" = "Did You used the wrong `g` as an argument for this function?",
+      "i" = "Did You use the wrong `g` as an argument for this function?",
       "i" = "Did You forget to optimize with `g <- find_MAP(return_probabilities = TRUE)`?",
-      "i" = "Did You unintentionally used `g <- forget_perms(g)`?"
+      "i" = "Did You unintentionally use `g <- forget_perms(g)`?"
     ))
   }
 
@@ -2137,12 +2294,12 @@ forget_perms <- function(g) {
   if (is.null(optimization_info)) {
     rlang::inform(c(
       "Provided `g` is a `gips` object, but it was not optimized yet.",
-      "i" = "Did You provided the wrong `gips` object?"
+      "i" = "Did You provide the wrong `gips` object?"
     ))
   } else if (all(is.na(optimization_info[["visited_perms"]]))) {
     rlang::inform(c(
       "Provided `g` is an optimized `gips` object that already has forgotten all permutations.",
-      "i" = "Did You provided the wrong `gips` object?"
+      "i" = "Did You provide the wrong `gips` object?"
     ))
   } else {
     optimization_info[["visited_perms"]] <- I(NA)

@@ -1,4 +1,4 @@
-## ---- include = FALSE---------------------------------------------------------
+## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk[["set"]](
   collapse = TRUE,
   comment = "#>",
@@ -11,7 +11,7 @@ old_options <- options(scipen = 999) # turn off scientific notation
 library(gips)
 
 ## ----help, eval=FALSE---------------------------------------------------------
-#  ?find_MAP()
+# ?find_MAP()
 
 ## ----brute_force_1------------------------------------------------------------
 perm_size <- 6
@@ -73,48 +73,48 @@ g_map
 ## ----Metropolis_Hastings_3----------------------------------------------------
 plot(g_map, type = "best", logarithmic_x = TRUE)
 
-## ---- hill_climb_pseudocode, eval=FALSE---------------------------------------
-#  hill_climb <- function(g, max_iter) {
-#    perm <- g[[1]]
-#    perm_log_f <- log_posteriori_of_gips(g)
-#    perm_size <- attr(perm, "size")
-#    S <- attr(g, "S")
-#    number_of_observations <- attr(g, "number_of_observations")
-#  
-#    best_neighbor <- NULL
-#    best_neighbor_log_f <- -Inf
-#  
-#    i <- 1
-#  
-#    while (perm_i_minus_1_log_f < perm_i_log_f && i < max_iter) {
-#      best_neighbor <- NULL
-#      best_neighbor_log_f <- -Inf
-#  
-#      for (j in 1:(perm_size - 1)) {
-#        for (k in (j + 1):perm_size) {
-#          t <- c(j, k)
-#          neighbor <- gips:::compose_with_transposition(perm, t)
-#          neighbor_log_f <- log_posteriori_of_gips(gips(
-#            S, number_of_observations,
-#            perm = neighbor
-#          ))
-#  
-#          if (neighbor_log_f > best_neighbor_log_f) {
-#            best_neighbor <- neighbor
-#            best_neighbor_log_f <- neighbor_log_f
-#          } # end if
-#        } # end for k
-#      } # end for j
-#      i <- i + 1
-#  
-#      perm_i_minus_1_log_f <- perm_i_log_f
-#  
-#      perm_i <- best_neighbor
-#      perm_i_log_f <- best_neighbor_log_f
-#    } # end while
-#  
-#    return(perm_i)
-#  }
+## ----hill_climb_pseudocode, eval=FALSE----------------------------------------
+# hill_climb <- function(g, max_iter) {
+#   perm <- g[[1]]
+#   perm_log_f <- log_posteriori_of_gips(g)
+#   perm_size <- attr(perm, "size")
+#   S <- attr(g, "S")
+#   number_of_observations <- attr(g, "number_of_observations")
+# 
+#   best_neighbor <- NULL
+#   best_neighbor_log_f <- -Inf
+# 
+#   i <- 1
+# 
+#   while (perm_i_minus_1_log_f < perm_i_log_f && i < max_iter) {
+#     best_neighbor <- NULL
+#     best_neighbor_log_f <- -Inf
+# 
+#     for (j in 1:(perm_size - 1)) {
+#       for (k in (j + 1):perm_size) {
+#         t <- c(j, k)
+#         neighbor <- gips:::compose_with_transposition(perm, t)
+#         neighbor_log_f <- log_posteriori_of_gips(gips(
+#           S, number_of_observations,
+#           perm = neighbor
+#         ))
+# 
+#         if (neighbor_log_f > best_neighbor_log_f) {
+#           best_neighbor <- neighbor
+#           best_neighbor_log_f <- neighbor_log_f
+#         } # end if
+#       } # end for k
+#     } # end for j
+#     i <- i + 1
+# 
+#     perm_i_minus_1_log_f <- perm_i_log_f
+# 
+#     perm_i <- best_neighbor
+#     perm_i_log_f <- best_neighbor_log_f
+#   } # end while
+# 
+#   return(perm_i)
+# }
 
 ## ----hill_climbing_1----------------------------------------------------------
 perm_size <- 25
