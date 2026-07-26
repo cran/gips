@@ -72,6 +72,31 @@ is.positive.definite.matrix <- function(matrix_of_interest, tolerance = 1e-06) {
   return(all(eigenvalues >= tolerance * abs(eigenvalues[1]))) # 1st is the biggest eigenvalue
 }
 
+is_scalar_identity_matrix <- function(matrix_of_interest, tolerance = 1e-06) {
+  if (nrow(matrix_of_interest) != ncol(matrix_of_interest)) {
+    return(FALSE)
+  }
+  
+  if (nrow(matrix_of_interest) <= 1) {
+    return(TRUE)
+  }
+  
+  # fast check
+  if (abs(matrix_of_interest[1, 2]) > tolerance) {
+    return(FALSE)
+  }
+  
+  # fast diagonal check
+  diagonals <- diag(matrix_of_interest)
+  # Use the mean of numerically equal diagonal values as the scalar.
+  d <- mean(diagonals)
+  if (any(abs(diagonals - d) > tolerance)) {
+    return(FALSE)
+  }
+  
+  all(abs(matrix_of_interest - diag(d, nrow(matrix_of_interest))) <= tolerance)
+}
+
 wrong_argument_abort <- function(i, x = "") {
   rlang::abort(c("There was a problem identified with provided argument",
     "i" = i,
@@ -93,13 +118,13 @@ change_log_probabilities_unnorm_to_probabilities <- function(log_probabilities_u
 }
 
 pretty_plot_matrix <- function(S, title = "") {
-  plot(gips(S, 1), type = "heatmap") +
+  plot(gips(S, 1, was_mean_estimated = FALSE), type = "heatmap") +
     ggplot2::labs(title = title, x = "", y = "", fill = "value")
 }
 
 pretty_plot_block_matrix <- function(S, perm, title = "") {
   # S is the original cov estimator - not diagonalized!
-  plot(gips(S, 1, perm = perm), type = "block_heatmap") +
+  plot(gips(S, 1, perm = perm, was_mean_estimated = FALSE), type = "block_heatmap") +
     ggplot2::labs(title = title, x = "", y = "", fill = "value")
 }
 

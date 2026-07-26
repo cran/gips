@@ -1,8 +1,8 @@
 #' Calculate Gamma function
 #'
-#' It calculates the value of the integral defined in
+#' Calculates the integral defined in
 #' [Definition 11 from references](https://arxiv.org/abs/2004.03503).
-#' It implements
+#' Implements
 #' [Theorem 8 from references](https://arxiv.org/abs/2004.03503)
 #' and uses the
 #' [formula (19) from references](https://arxiv.org/abs/2004.03503).
@@ -10,7 +10,7 @@
 #' @inheritParams get_structure_constants
 #' @param lambda A positive real number.
 #'
-#' @returns Returns the value of the Gamma function of the colored cone
+#' @returns The value of the Gamma function of the colored cone
 #'     (for the definition of the colored cone, see the **Basic definitions**
 #'     section in `vignette("Theory", package = "gips")` or in its
 #'     [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)).
@@ -33,9 +33,9 @@
 #'
 #' @examples
 #' id_perm <- gips_perm("()", 2)
-#' calculate_gamma_function(id_perm, 0.5001) # 10.7...
-#' calculate_gamma_function(id_perm, 0.50000001) # 19.9...
-#' calculate_gamma_function(id_perm, 0.500000000001) # 29.1...
+#' calculate_gamma_function(id_perm, 0.5001) # 44417.54
+#' calculate_gamma_function(id_perm, 0.50000001) # 444288280
+#' calculate_gamma_function(id_perm, 0.500000000001) # 4.442981e+12
 #'
 #' oldw <- getOption("warn")
 #' options(warn = -1)
@@ -66,7 +66,7 @@ calculate_gamma_function <- function(perm, lambda) {
   B_Gamma <- sum(dim_gamma * log(k)) / 2
 
   gamma_omega <- sapply(1:L, function(i) {
-    calculate_gamma_omega(
+    calculate_log_gamma_omega(
       k[i] * lambda,
       dim_gamma[i],
       r[i],
@@ -74,7 +74,7 @@ calculate_gamma_function <- function(perm, lambda) {
     )
   })
 
-  exp(-A_Gamma * lambda + B_Gamma) * prod(gamma_omega)
+  exp(-A_Gamma * lambda + B_Gamma + sum(gamma_omega))
 }
 
 
@@ -90,8 +90,8 @@ calculate_gamma_function <- function(perm, lambda) {
 #' @returns Logarithm of the value of Gamma function.
 #'
 #' @noRd
-calculate_gamma_omega <- function(lambda, dim_omega_i, r_i, d_i) {
-  if (lambda <= dim_omega_i / r_i - 1) {
+calculate_log_gamma_omega <- function(lambda, dim_omega_i, r_i, d_i) {
+  if ((lambda + 1) * r_i <= dim_omega_i) { # equivalent to lambda <= dim_omega_i / r_i - 1
     rlang::warn(c("Gamma integral is divergent for the given lambda value and structure constants.",
       "i" = paste0(
         "Gamma(lambda = ", lambda,
@@ -108,30 +108,51 @@ calculate_gamma_omega <- function(lambda, dim_omega_i, r_i, d_i) {
 }
 
 
-#' G_function for `log_posteriori_of_gips()`
+#' Calculate the G part of `log_posteriori_of_gips()`
 #'
-#' @param delta Parameter of a method. The default is `3`.
-#'     When `structure_constants` are from an id permutation, `delta <= 0` iff `G_function() = +Inf`.
-#'     When `structure_constants` are from a permutation that is not id, `delta <= 1` iff `G_function() = +Inf`.
-#' @param structure_constants Constants from `get_structure_constants` function.
+#' @param structure_constants Constants from `get_structure_constants()`.
+#' @param delta Parameter of a method.
+#' @param number_of_observations Number of observations.
 #'
-#' @returns Sum of logarithms of elements of `calculate_gamma_omega` from i to L.
-#' It is a log of a product part of the equation (27). For more information, see Issue #3 on `gips`' GitHub.
-#'
-#' @examples
-#' perm_size <- 6
-#' perm <- permutations::as.cycle(permutations::as.word(c(2, 3, 1, 5, 4, 6)))
-#' my_gips_perm <- gips_perm(perm, perm_size)
-#' structure_constants <- get_structure_constants(my_gips_perm)
-#' gips:::G_function(structure_constants, 3)
-#'
+#' @returns Difference `G(delta + number_of_observations) - G(delta)`.
 #' @noRd
-G_function <- function(structure_constants, delta = 3) {
-  single_G_i <- sapply(1:structure_constants[["L"]], function(i) {
-    lambda_i <- structure_constants[["k"]][i] * (delta - 2) / 2 + structure_constants[["dim_omega"]][i] / structure_constants[["r"]][i]
+calculate_G_part <- function(structure_constants, delta, number_of_observations) {
+  L <- structure_constants[["L"]]
+  k <- structure_constants[["k"]]
+  r <- structure_constants[["r"]]
+  d <- structure_constants[["d"]]
+  dim_omega <- structure_constants[["dim_omega"]]
 
-    calculate_gamma_omega(lambda_i, structure_constants[["dim_omega"]][i], structure_constants[["r"]][i], structure_constants[["d"]][i])
-  })
+  lambda_prior <- k * (delta - 2) / 2 + dim_omega / r
+  lambda_posterior <- lambda_prior + k * number_of_observations / 2
 
-  sum(single_G_i)
+  divergent <- (lambda_prior + 1) * r <= dim_omega |
+    (lambda_posterior + 1) * r <= dim_omega
+  if (any(divergent)) {
+    stop(
+      paste0(
+        "Gamma integral divergence detected while calculating the G part. ",
+        "This should not happen for valid `gips` inputs. ",
+        "This follows from the facts that `delta > 1`, `k` is `1` or `2` and `r >= 1`. ",
+        "If You see this, please open an ISSUE on GitHub to let us know."
+      ),
+      call. = FALSE
+    )
+  }
+
+  out <- 0
+  for (i in seq_len(L)) {
+    offsets <- (0:(-(r[i] - 1))) * d[i] / 2
+    gamma_values <- lgamma(c(
+      lambda_posterior[i] + offsets,
+      lambda_prior[i] + offsets
+    ))
+    block_indices <- seq_len(r[i])
+
+    out <- out +
+      sum(gamma_values[block_indices]) -
+      sum(gamma_values[r[i] + block_indices])
+  }
+
+  out
 }

@@ -9,7 +9,7 @@
 #'     It can also be of a `gips` class but
 #'     it will be interpreted as the underlying `gips_perm`.
 #' @param size An integer. Size of a permutation
-#'     (AKA cardinality of a set, on which permutation is defined. See examples).
+#'     (AKA the cardinality of the set on which the permutation is defined. See examples).
 #'
 #' @section Methods for a `gips` class:
 #' * [as.character.gips_perm()]
@@ -171,7 +171,7 @@ new_gips_perm <- function(rearranged_cycles, size) {
 
 #' @describeIn gips_perm Validator. Only intended for low-level use.
 #'
-#' @param g Object to be checked whether it is
+#' @param g An object to be checked whether it is
 #'     a proper object of a `gips_perm` class.
 #'
 #' @returns `validate_gips_perm()` returns its argument unchanged.
@@ -248,7 +248,7 @@ validate_gips_perm <- function(g) {
 #' @param x An object of a `gips_perm` class.
 #' @param ... Further arguments (currently ignored).
 #'
-#' @returns Returns an invisible `NULL`.
+#' @returns An invisible `NULL`.
 #'
 #' @export
 #'
@@ -272,7 +272,7 @@ print.gips_perm <- function(x, ...) {
 #'
 #' @method as.character gips_perm
 #'
-#' @returns Returns an object of a `character` type.
+#' @returns An object of a `character` type.
 #'
 #' @seealso
 #' * [as.character.gips()] - The underlying `gips_perm` of
@@ -309,7 +309,7 @@ as.character.gips_perm <- function(x, ...) {
 #' composed <- compose_with_transposition(gperm, tr)
 #' composed2 <- perm * tr_perm
 #'
-#' # composed and composed 2 refer to the same permutation
+#' # composed and composed2 refer to the same permutation
 compose_with_transposition <- function(gips_perm, transposition) {
   cycle_1_index <- which(sapply(gips_perm, function(cycle) {
     transposition[1] %in% cycle
@@ -363,14 +363,22 @@ add_cycle <- function(cycles, new_cycle) {
 #' @noRd
 gips_perm_no_checks <- function(x, size) {
   cycles <- unclass(x)[[1]]
-  all_ints <- unlist(cycles)
-  representatives <- permutations::get1(x)
-  fixed_boolean <- permutations::fixed(x)
-  if (length(fixed_boolean) < size) {
-    fixed_boolean[(length(fixed_boolean) + 1):size] <- TRUE
-  }
-  fixed_elements <- which(fixed_boolean)
-  subcycles <- c(cycles, as.list(fixed_elements))
+  gips_perm_no_checks_from_cycles(cycles, size)
+}
 
-  new_gips_perm(rearrange_cycles(subcycles), size)
+#' The same as `gips_perm_no_checks()`, but starts from unclassed cycles
+#'
+#' This helper assumes that cycles come from an internally generated
+#' `permutations::cycle` object, so they are already in canonical cycle form.
+#' @noRd
+gips_perm_no_checks_from_cycles <- function(cycles, size) {
+  fixed_elements <- setdiff(seq_len(size), unlist(cycles, use.names = FALSE))
+  fixed_cycles <- as.list(fixed_elements)
+  subcycles <- c(cycles, fixed_cycles)
+  representatives <- c(
+    vapply(cycles, function(v) v[1], numeric(1)),
+    fixed_elements
+  )
+
+  new_gips_perm(subcycles[order(representatives)], size)
 }

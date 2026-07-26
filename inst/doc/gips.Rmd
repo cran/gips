@@ -20,7 +20,7 @@ old_options <- options(scipen = 999) # turn off scientific notation
 
 # The problem
 
-Quite often, we have too little data to perform valid inferences. Consider the 
+Often, we have too little data to perform valid inferences. Consider the 
 situation with multivariate Gaussian distribution, where we have few observations 
 compared to the number of variables. For example, that's the case for
 graphical models used in biology or medicine. In such a setting, the usual way
@@ -31,7 +31,7 @@ statistically applicable. What now?
 # Invariance by permutation
 
 Sometimes, the interchange of variables in the vector does not change its distribution.
-In the multivariate Gaussian case, it would mean that they have the same variances and covariances with other respective variables. For instance, in the following covariance matrix, variables X1 and X3 are interchangeable, meaning that vectors (X1, X2, X3) and (X3, X2, X1) have the same distribution.
+In the multivariate Gaussian case, it means they have the same variances and covariances with other respective variables. For instance, in the following covariance matrix, variables X1 and X3 are interchangeable, meaning that vectors (X1, X2, X3) and (X3, X2, X1) have the same distribution.
 
 ```{r symvariant_matrix, echo=FALSE}
 X <- matrix(c(
@@ -58,12 +58,12 @@ We propose creating a set of constraints on the covariance matrix to use the max
 
 This package provides a way to find a *reasonable* permutation to be used as a constraint in covariance matrix estimation. In this case, *reasonable* means maximizing the Bayesian posterior distribution when using a Wishart-like distribution on symmetric, positive definite matrices as a prior. The idea, exact formulas, and algorithm sketch are explored in another vignette that can be accessed by `vignette("Theory", package="gips")` or on its [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html).
 
-For an in-depth analysis of the package performance, capabilities, and comparison with other packages, see the article "Learning permutation symmetries with gips in R" by `gips`' developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek, [Journal of Statistical Software](<doi:10.18637/jss.v112.i07>).
+For an in-depth analysis of the package performance, capabilities, and comparison with other packages, see the article "Learning permutation symmetries with gips in R" by `gips`' developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek, [Journal of Statistical Software](https://doi.org/10.18637/jss.v112.i07).
 
 
 # Practical example
 
-Let's examine 12 books' thick, height, and breadth data:
+Let's examine thickness, height, and breadth data from 12 books:
 ```{r change_D_matrix_example0, include=FALSE}
 plot_cosmetic_modifications <- function(gg_plot_object) {
   my_col_names <- names(DAAG::oddbooks[, c(1, 2, 3)])
@@ -135,7 +135,7 @@ g_map <- find_MAP(g,
 g_map
 get_probabilities_from_gips(g_map)
 ```
-`find_MAP` found the symmetry represented by permutation (2,3).
+`find_MAP()` found the symmetry represented by permutation (2,3).
 
 ```{r change_D_matrix_example4}
 plot_cosmetic_modifications(plot(g_map, type = "heatmap"))
@@ -188,7 +188,10 @@ S <- cov(toy_example_data)
 
 sum(eigen(S)$values > 0.00000001)
 ```
-Note that the rank of the `S` matrix is 3, despite the `number_of_observations` being 4. This is because `cov()` estimated the mean on every column to compute `S`.
+Note that the rank of the `S` matrix is
+`r sum(eigen(S)$values > 0.00000001)`, despite the `number_of_observations`
+being `r number_of_observations`. This is because `cov()` estimated the mean
+on every column to compute `S`.
 
 We want to find reasonable additional assumptions on `S` to make it easier to estimate.
 
@@ -216,30 +219,160 @@ plot(g_map, type = "heatmap")
 ```{r toy_example_data_show4}
 g_map
 ```
-This assumption is over 3 times more believable than making no assumption. Let's examine how reasonable are other possible assumptions:
+This assumption is
+`r round(compare_posteriories_of_perms(g_map, g, print_output = FALSE), 2)`
+times more believable than making no assumption. Let's examine how reasonable
+other possible assumptions are:
 
 ```{r toy_example_data_show5}
-get_probabilities_from_gips(g_map)
+toy_probabilities <- get_probabilities_from_gips(g_map)
+toy_probabilities
 ```
-We see that assumption $(3,4,5)$ is the most likely with a $6.2\%$ posterior probability. 21 possible permutations are more likely than id.
+We see that assumption $(3,4,5)$ is the most likely with a
+`r round(100 * toy_probabilities[["(3,4,5)"]], 1)`% posterior probability.
+`r sum(toy_probabilities > toy_probabilities[["()"]])` possible permutations
+are more likely than id.
 
 Remember that the `n0` could still be too big for your data. In this example, the assumptions with transpositions (like $(3,5)$) would yield the `n0` $= 5$, which would be insufficient for us to estimate covariance correctly. The assumption $(3,4,5)$ will be just right:
 
 ```{r toy_example_data_show6}
-summary(g_map)$n0 # n0 = 4 <= 4 = number_of_observations
+summary(g_map)$n0 # compare n0 with number_of_observations
 
 S_projected <- project_matrix(S, g_map)
 S_projected
 sum(eigen(S_projected)$values > 0.00000001)
 ```
-Now, the estimated covariance matrix is of full rank (5).
+Now, the estimated covariance matrix is of full rank (`r nrow(S_projected)`).
+
+
+# Multi-sample example
+
+Sometimes, we may have several independent groups that should share the same
+permutation symmetry, while each group has its own covariance matrix. In this
+case, pass a list of covariance matrices as `S` and a vector of sample sizes as
+`number_of_observations`.
+
+Every matrix must describe the same variables in the same row and column order.
+`gips` applies a shared permutation to matching matrix indices; it does not
+match or reorder variables using matrix names.
+
+The two covariance matrices below are different, but both are invariant under
+the permutation $(1,2,3)$:
+
+```{r multi_sample_example_data}
+p <- 5
+n1 <- 20
+n2 <- 23
+
+sigma_matrix_1 <- matrix(c(
+  1.50,  0.95,  0.95,  0.30, -0.05,
+  0.95,  1.50,  0.95,  0.30, -0.05,
+  0.95,  0.95,  1.50,  0.30, -0.05,
+  0.30,  0.30,  0.30,  2.40,  0.05,
+ -0.05, -0.05, -0.05,  0.05,  0.60
+), nrow = p, byrow = TRUE)
+
+sigma_matrix_2 <- matrix(c(
+  2.10,  1.40,  1.40, -0.35,  0.55,
+  1.40,  2.10,  1.40, -0.35,  0.55,
+  1.40,  1.40,  2.10, -0.35,  0.55,
+ -0.35, -0.35, -0.35,  0.80, -0.30,
+  0.55,  0.55,  0.55, -0.30,  2.80
+), nrow = p, byrow = TRUE)
+
+data_sample_1 <- withr::with_seed(21, 
+  MASS::mvrnorm(n1, mu = rep(0, p), Sigma = sigma_matrix_1)
+)
+
+data_sample_2 <- withr::with_seed(37, 
+  MASS::mvrnorm(n2, mu = rep(0, p), Sigma = sigma_matrix_2)
+)
+
+S1 <- cov(data_sample_1)
+S2 <- cov(data_sample_2)
+
+variable_names <- c("he", "ha", "hi", "hu", "hy")
+dimnames(S1) <- list(variable_names, variable_names)
+dimnames(S2) <- list(variable_names, variable_names)
+
+S_by_group <- list("Sample 1" = S1, "Sample 2" = S2)
+```
+
+Let us look at the sample covariance matrices:
+
+```{r multi_sample_plot}
+g_multi <- gips(S_by_group, c(n1, n2))
+
+plot(g_multi, type = "MLE")
+```
+
+We see that the estimated covariances are different, but both look approximately invariant under the $(1,2,3)$ permutation.
+
+Now we can fit one shared symmetry model to both covariance matrices:
+
+```{r multi_sample_example_fit}
+g_multi_map <- find_MAP(g_multi,
+  optimizer = "brute_force",
+  return_probabilities = TRUE, save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+g_multi_map
+multi_probabilities <- get_probabilities_from_gips(g_multi_map)
+head(multi_probabilities, 5)
+```
+
+The MAP symmetry is $(1,2,3)$, matching the shared symmetry used to generate
+both groups. Its posterior probability is about
+`r round(100 * multi_probabilities[["(1,2,3)"]], 1)`%. The projected covariance
+estimate is also returned as one matrix per group:
+
+```{r multi_sample_example_project}
+S_multi_projected <- project_matrix(S_by_group, g_multi_map)
+
+round(S_multi_projected[[1]], 2)
+round(S_multi_projected[[2]], 2)
+
+plot(g_multi_map, type = "MLE")
+```
+
+If we analyze the two groups separately, the shared symmetry is less clear:
+
+```{r multi_sample_single_group_comparison}
+g_1_map <- find_MAP(gips(S1, n1),
+  optimizer = "BF",
+  return_probabilities = TRUE,
+  save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+g_2_map <- find_MAP(gips(S2, n2),
+  optimizer = "BF",
+  return_probabilities = TRUE,
+  save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+group_1_probabilities <- get_probabilities_from_gips(g_1_map)
+group_2_probabilities <- get_probabilities_from_gips(g_2_map)
+
+head(group_1_probabilities, 5)
+head(group_2_probabilities, 5)
+```
+
+The separate analyses are more ambiguous. The true $(1,2,3)$ permutation has
+posterior probability about
+`r round(100 * group_1_probabilities[["(1,2,3)"]], 1)`% in the first sample and
+only about `r round(100 * group_2_probabilities[["(1,2,3)"]], 1)`% in the second
+sample. The multi-sample fit combines evidence from both groups while requiring
+one shared permutation symmetry.
 
 
 # Further reading
 
 1. To learn more about the available optimizers in `find_MAP()` and how to use those, see `vignette("Optimizers", package="gips")` or its [pkgdown page](https://przechoj.github.io/gips/articles/Optimizers.html).
 2. To learn more about the math and theory behind the `gips` package, see `vignette("Theory", package="gips")` or its [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html).
-3. For an in-depth analysis of the package performance, capabilities, and comparison with other packages, see the article "Learning permutation symmetries with gips in R" by `gips` developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek, [Journal of Statistical Software](<doi:10.18637/jss.v112.i07>).
+3. For an in-depth analysis of the package performance, capabilities, and comparison with other packages, see the article "Learning permutation symmetries with gips in R" by `gips` developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek, [Journal of Statistical Software](https://doi.org/10.18637/jss.v112.i07).
 
 ```{r options_back, include = FALSE}
 options(old_options) # back to the original options

@@ -14,24 +14,24 @@ it will be interpreted as the underlying \code{gips_perm}.}
 \item{lambda}{A positive real number.}
 }
 \value{
-Returns the value of the Gamma function of the colored cone
+The value of the Gamma function of the colored cone
 (for the definition of the colored cone, see the \strong{Basic definitions}
 section in \code{vignette("Theory", package = "gips")} or in its
 \href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}).
 }
 \description{
-It calculates the value of the integral defined in
+Calculates the integral defined in
 \href{https://arxiv.org/abs/2004.03503}{Definition 11 from references}.
-It implements
+Implements
 \href{https://arxiv.org/abs/2004.03503}{Theorem 8 from references}
 and uses the
 \href{https://arxiv.org/abs/2004.03503}{formula (19) from references}.
 }
 \examples{
 id_perm <- gips_perm("()", 2)
-calculate_gamma_function(id_perm, 0.5001) # 10.7...
-calculate_gamma_function(id_perm, 0.50000001) # 19.9...
-calculate_gamma_function(id_perm, 0.500000000001) # 29.1...
+calculate_gamma_function(id_perm, 0.5001) # 44417.54
+calculate_gamma_function(id_perm, 0.50000001) # 444288280
+calculate_gamma_function(id_perm, 0.500000000001) # 4.442981e+12
 
 oldw <- getOption("warn")
 options(warn = -1)

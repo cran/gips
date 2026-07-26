@@ -31,7 +31,7 @@ compare_log_posteriories_of_perms(
 }
 \arguments{
 \item{perm1, perm2}{Permutations to compare.
-How many times \code{perm1} is more likely than \code{perm2}?
+How many times is \code{perm1} more likely than \code{perm2}?
 Those can be provided as the \code{gips} objects,
 the \code{gips_perm} objects, or anything that can be used as
 the \code{x} parameter in the \code{\link[=gips_perm]{gips_perm()}} function.
@@ -67,6 +67,15 @@ logarithmic version of \code{compare_posteriories_of_perms()}.
 The natural logarithm is used.
 
 }}
+\section{Multi-sample}{
+
+When comparing permutations for a multi-sample \code{gips} object, or when
+passing multi-sample arguments directly, the comparison uses the combined
+log-posterior (the sum of per-group log-posteriors). Two \code{gips} objects can
+be compared only when they are both single-sample or both multi-sample with
+the same data and hyperparameters.
+}
+
 \examples{
 require("MASS") # for mvrnorm()
 

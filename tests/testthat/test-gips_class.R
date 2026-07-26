@@ -48,6 +48,32 @@ test_that("Setting custom permutation in gips constructor works", {
   expect_equal(g2, g3)
 })
 
+test_that("gips() validates number_of_observations type and length clearly", {
+  list_error <- rlang::catch_cnd(gips(S = diag(1.1, 4), number_of_observations = list(13)))
+  expect_match(conditionMessage(list_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(list_error), "type `list`", fixed = TRUE)
+
+  character_error <- rlang::catch_cnd(gips(S = diag(1.1, 4), number_of_observations = "13"))
+  expect_match(conditionMessage(character_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(character_error), "type `character`", fixed = TRUE)
+
+  length_error <- rlang::catch_cnd(gips(S = diag(1.1, 4), number_of_observations = c(13, 14)))
+  expect_match(conditionMessage(length_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(length_error), "length 2", fixed = TRUE)
+})
+
+test_that("gips() requires enough observations after mean estimation", {
+  expect_silent(gips(S = diag(1.1, 4), number_of_observations = 1, was_mean_estimated = FALSE))
+
+  n_error <- rlang::catch_cnd(gips(
+    S = diag(1.1, 4),
+    number_of_observations = 1,
+    was_mean_estimated = TRUE
+  ))
+  expect_match(conditionMessage(n_error), "`number_of_observations` must be at least 2", fixed = TRUE)
+  expect_match(conditionMessage(n_error), "`was_mean_estimated == TRUE`", fixed = TRUE)
+})
+
 test_that("new_gips() works or throws an erron on wrong arguments", {
   expect_silent(new_gips(
     list(gips_perm("(1,2)(3,4,5,6)", 6)),
@@ -119,9 +145,12 @@ test_that("Properly validate the gips class with no optimization or after a sing
       optimizer = "MH", return_probabilities = TRUE, save_all_perms = TRUE
     )
   }
-  g3 <- find_MAP(g1,
-    max_iter = 3, show_progress_bar = FALSE,
-    optimizer = "HC", return_probabilities = FALSE
+  # both warning and no warning are correct
+  suppressWarnings(
+    g3 <- find_MAP(g1,
+                   max_iter = 3, show_progress_bar = FALSE,
+                   optimizer = "HC", return_probabilities = FALSE
+    )
   )
 
   g_BF <- find_MAP(
@@ -170,13 +199,37 @@ test_that("Properly validate the gips class with no optimization or after a sing
     S[1:4, 1:4], number_of_observations,
     was_mean_estimated = FALSE, D_matrix = diag(Inf, 4)
   ))
+  
+  # non-symmetric or non-positive-definite D_matrix
+  expect_error(
+    gips(
+      S[1:4, 1:4], number_of_observations,
+      was_mean_estimated = FALSE,
+      D_matrix = matrix(c(
+        1, 0, 0, 0,
+        1, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+      ), nrow = 4)
+    ),
+    "`D_matrix` must either be `NULL` or a symmetric matrix.",
+    fixed = TRUE
+  )
+  expect_error(
+    gips(
+      S[1:4, 1:4], number_of_observations,
+      was_mean_estimated = FALSE, D_matrix = diag(c(1, 1, 1, -1))
+    ),
+    "`D_matrix` must either be `NULL` or a positive-definite matrix.",
+    fixed = TRUE
+  )
 
   # Other tests
   g_err <- g2
   class(g_err[[1]]) <- "test"
   expect_error(
     validate_gips(g_err),
-    "must be an object of a `gips_perm` class."
+    "must be an object of class `gips_perm`."
   )
 
   g_err <- g2
@@ -198,282 +251,14 @@ test_that("Properly validate the gips class with no optimization or after a sing
   attributes(g_err) <- attributes(g2)
   expect_error(
     validate_gips(g_err),
-    "You provided `g\\[\\[1\\]\\]` with `class\\(g\\[\\[1\\]\\]\\) == 'gips_perm'`, but your g\\[\\[1\\]\\] does not pass `validate_gips_perm\\(g\\[\\[1\\]\\]\\)`."
+    "You provided `g\\[\\[1\\]\\]` with class `gips_perm`, but it does not pass `validate_gips_perm\\(g\\[\\[1\\]\\]\\)`."
   )
 
-
-  # test of "optimization_info" validation:
   g_err <- g2
   attr(g_err, "optimization_info") <- "test"
   expect_error(
     validate_gips(g_err),
     "The `optimization_info` value must be either a `NULL`, or a list."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["non_existing"]] <- "test"
-  expect_error(
-    validate_gips(g_err),
-    "You have a list of 16 elements."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- NULL
-  expect_error(
-    validate_gips(g_err),
-    "You have a list of 14 elements."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["non_existing"]] <- "test"
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- NULL
-  expect_error(
-    validate_gips(g_err),
-    "You have a list of 15 elements."
-  )
-  # this one showed an error that one have the list of proper number of elements, which is actually expected, but the names of the fields are not expected.
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- -0.1
-  expect_error(
-    validate_gips(g_err),
-    "must be a number in range \\[0, 1\\]."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_algorithm_used"]] <- "brute_force" # in general, brute_force is all right, but then the acceptance_rate has to be NULL
-  expect_error(
-    validate_gips(g_err),
-    "When brute force algorithm was used for optimization, `attr\\(g, 'optimization_info'\\)\\[\\['acceptance_rate'\\]\\]` must be a `NULL`"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["log_posteriori_values"]] <- as.character(attr(g_err, "optimization_info")[["log_posteriori_values"]])
-  expect_error(
-    validate_gips(g_err),
-    "must be a vector of numbers."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["visited_perms"]] <- "text"
-  expect_error(
-    validate_gips(g_err),
-    "must be a list or `NA`."
-  )
-
-  g_err <- g2
-  class(attr(g_err, "optimization_info")[["visited_perms"]][[1]]) <- "test"
-  expect_error(
-    validate_gips(g_err),
-    "must be of a `gips_perm` class."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["visited_perms"]] <- list()
-  expect_error(
-    validate_gips(g_err),
-    "is a list, but of a length 0."
-  )
-
-  g_err <- g_BF
-  attr(g_err, "optimization_info")[["visited_perms"]] <- list()
-  expect_error(
-    validate_gips(g_err),
-    "is a list, but of a length 0"
-  )
-
-  g_err <- g_BF
-  attr(g_err, "optimization_info")[["visited_perms"]] <- "()"
-  expect_error(
-    validate_gips(g_err),
-    "You have `attr\\(g, 'optimization_info'\\)\\[\\['visited_perms'\\]\\]` of type character."
-  )
-
-  g_err <- g_BF
-  attr(g_err, "optimization_info")[["last_perm"]] <- "()"
-  expect_error(
-    validate_gips(g_err),
-    "You have `attr\\(g, 'optimization_info'\\)\\[\\['last_perm'\\]\\]` of type character."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm"]] <- 7
-  expect_error(
-    validate_gips(g_err),
-    "must be the last element of"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm"]] <- gips_perm("", 6)
-  expect_error(
-    validate_gips(g_err),
-    "must be the log_posteriori of"
-  )
-
-  g_err <- g2
-  fake_gips_perm <- "()"
-  class(fake_gips_perm) <- "gips_perm"
-  attr(g_err, "optimization_info")[["last_perm"]] <- fake_gips_perm
-  expect_error(
-    validate_gips(g_err),
-    ", but your attr\\(g, 'optimization_info'\\)\\[\\['last_perm'\\]\\] does not pass `validate_gips_perm"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- 7
-  expect_error(
-    validate_gips(g_err),
-    "must be the log_posteriori of"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- "7"
-  expect_error(
-    validate_gips(g_err),
-    "must be an object of a `gips_perm` class."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["iterations_performed"]] <- 4 # there were 2 iterations + init (+ additional 2 iterations if repeated); so it cannot be 4
-  expect_error(
-    validate_gips(g_err),
-    "In every iteration at least one value of log_posteriori is calculated."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["iterations_performed"]] <- 4.5
-  expect_error(
-    validate_gips(g_err),
-    "attr\\(g, 'optimization_info'\\)\\[\\['iterations_performed'\\]\\]` must be a vector of whole numbers"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_algorithm_used"]] <- "MH" # Even if MH was used, it would produce the text "Metropolis_Hastings"
-  expect_error(
-    validate_gips(g_err),
-    "The available optimization algorithms are 'Metropolis_Hastings', 'hill_climbing' and 'brute_force'."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_algorithm_used"]] <- "hill_climbing" # hill_climbing is legal, but the post_probabilities are not with this optimization_algorithm_used
-  expect_error(
-    validate_gips(g_err),
-    "`post_probabilities` can only be obtained with 'Metropolis_Hastings' or 'brute_force' optimization method."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + 0.1
-  expect_error(
-    validate_gips(g_err),
-    "must have properties of probability. All elements in range"
-  )
-
-  g_err <- g2
-  len_post_prob <- length(attr(g_err, "optimization_info")[["post_probabilities"]])
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + c(0, rep(1 / (len_post_prob - 1), len_post_prob - 1))
-  expect_error(
-    validate_gips(g_err),
-    "must have properties of probability. All elements in range"
-  )
-
-  g_good <- g2
-  attr(g_good, "optimization_info")[["post_probabilities"]] <- c(1, rep(0, length(attr(g_good, "optimization_info")[["post_probabilities"]]) - 1)) # this could underflow to 0
-  names(attr(g_good, "optimization_info")[["post_probabilities"]]) <- names(attr(g2, "optimization_info")[["post_probabilities"]])
-  expect_silent(
-    validate_gips(g_good)
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["did_converge"]] <- TRUE
-  expect_error(
-    validate_gips(g_err),
-    "`did_converge` can only be obtained with 'hill_climbing' or 'brute_force' optimization method."
-  )
-
-  g_err <- g3
-  attr(g_err, "optimization_info")[["did_converge"]] <- "test"
-  expect_error(
-    validate_gips(g_err),
-    "When 'hill_climbing' optimization method, the `did_converge` must be `TRUE` or `FALSE`."
-  )
-
-  g_err <- g3
-  attr(g_err, "optimization_info")[["did_converge"]] <- NA
-  expect_error(
-    validate_gips(g_err),
-    "When 'hill_climbing' optimization method, the `did_converge` must be `TRUE` or `FALSE`."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["best_perm_log_posteriori"]] <- 7
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_time"]] <- I(NA)
-  expect_error(
-    validate_gips(g_err),
-    "is initially set to `NA`, but that state of the gips object should not be available to the user."
-  )
-
-  g_err <- g2
-  time_now <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- time_now
-  expect_error(
-    validate_gips(g_err),
-    "has to be of a class 'difftime'."
-  )
-
-  g_err <- g2
-  time_now <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- 1
-  expect_error(
-    validate_gips(g_err),
-    " has to be of a class 'difftime'."
-  )
-
-  g_err <- g2
-  time_now2 <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- (time_now - time_now2)
-  expect_error(
-    validate_gips(g_err),
-    "has to be a non negative time difference."
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["whole_optimization_time"]] <- NA
-  expect_error(
-    validate_gips(g_err),
-    "You have `is.na\\(attr\\(g, 'optimization_info'\\)\\[\\['whole_optimization_time'\\]\\]\\)"
-  )
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["whole_optimization_time"]] <- 7
-  expect_error(
-    validate_gips(g_err),
-    "You have `attr\\(g, 'optimization_info'\\)\\[\\['whole_optimization_time'\\]\\]` of a class \\(numeric\\)"
-  )
-
-  g_err <- g2
-  time_now1 <- Sys.time()
-  attr(g_err, "optimization_info")[["whole_optimization_time"]] <- time_now2 - time_now1
-  expect_error(
-    validate_gips(g_err),
-    "`attr\\(g, 'optimization_info'\\)\\[\\['whole_optimization_time'\\]\\]` has to be a non negative time difference"
-  )
-
-
-  # more than 5 problems at the time:
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- -0.1
-  attr(g_err, "optimization_info")[["log_posteriori_values"]] <- as.character(attr(g_err, "optimization_info")[["log_posteriori_values"]])
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- 7
-  attr(g_err, "optimization_info")[["iterations_performed"]] <- 40
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + c(0, rep(1 / (len_post_prob - 1), len_post_prob - 1))
-  attr(g_err, "optimization_info")[["best_perm_log_posteriori"]] <- 7
-  attr(g_err, "optimization_info")[["optimization_time"]] <- I(NA)
-  expect_error(
-    validate_gips(g_err),
-    "and 3 more problems"
   )
 })
 
@@ -491,9 +276,12 @@ test_that("Properly validate the gips class after multiple optimizations", {
     g2 <- find_MAP(g2, max_iter = 3, show_progress_bar = FALSE, optimizer = "MH", return_probabilities = TRUE, save_all_perms = TRUE)
     g2 <- find_MAP(g2, max_iter = 3, show_progress_bar = FALSE, optimizer = "MH", return_probabilities = TRUE, save_all_perms = TRUE)
   }
-  g3 <- find_MAP(g1, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
-  g3 <- find_MAP(g3, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
-  g3 <- find_MAP(g3, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
+  # both warning and no warning are correct
+  suppressWarnings({
+    g3 <- find_MAP(g1, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
+    g3 <- find_MAP(g3, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
+    g3 <- find_MAP(g3, max_iter = 3, show_progress_bar = FALSE, optimizer = "HC", return_probabilities = FALSE)
+  })
 
   expect_warning(expect_message(expect_message(
     g_MH_MH <- find_MAP(
@@ -538,135 +326,19 @@ test_that("Properly validate the gips class after multiple optimizations", {
   attributes(g_err) <- attributes(g2)
   expect_error(validate_gips(g_err))
 
-
-  # test of "optimization_info" validation:
   g_err <- g2
   attr(g_err, "optimization_info") <- "test"
   expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["non_existing"]] <- "test"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- NULL
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["non_existing"]] <- "test"
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- NULL
-  expect_error(validate_gips(g_err)) # this one shows an error that one have the list of 10 elements, which is actually expected, but the names of the fields are not expected.
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- -0.1
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["log_posteriori_values"]] <- as.character(attr(g_err, "optimization_info")[["log_posteriori_values"]])
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["visited_perms"]] <- "text"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  class(attr(g_err, "optimization_info")[["visited_perms"]][[1]]) <- "test"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm"]] <- 7
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm"]] <- gips_perm("", 6)
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- 7
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- "7"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["iterations_performed"]] <- 40
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_algorithm_used"]] <- "MH" # Even if MH was used, it would produce the text "Metropolis_Hastings"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_algorithm_used"]] <- "hill_climbing" # hill_climbing is legal, but the post_probabilities are not with this optimization_algorithm_used
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + 0.1
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  len_post_prob <- length(attr(g_err, "optimization_info")[["post_probabilities"]])
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + c(0, rep(1 / (len_post_prob - 1), len_post_prob - 1))
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["did_converge"]] <- TRUE
-  expect_error(validate_gips(g_err))
-
-  g_err <- g3
-  attr(g_err, "optimization_info")[["did_converge"]] <- "test"
-  expect_error(validate_gips(g_err))
-
-  g_err <- g3
-  attr(g_err, "optimization_info")[["did_converge"]] <- NA
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["best_perm_log_posteriori"]] <- 7
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  attr(g_err, "optimization_info")[["optimization_time"]] <- I(NA)
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  time_now <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- time_now
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  time_now <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- 1
-  expect_error(validate_gips(g_err))
-
-  g_err <- g2
-  time_now2 <- Sys.time()
-  attr(g_err, "optimization_info")[["optimization_time"]] <- (time_now - time_now2)
-  expect_error(validate_gips(g_err))
-
-
-
-  # more than 5 problems at the time:
-  g_err <- g2
-  attr(g_err, "optimization_info")[["acceptance_rate"]] <- -0.1
-  attr(g_err, "optimization_info")[["log_posteriori_values"]] <- as.character(attr(g_err, "optimization_info")[["log_posteriori_values"]])
-  attr(g_err, "optimization_info")[["last_perm_log_posteriori"]] <- 7
-  attr(g_err, "optimization_info")[["iterations_performed"]] <- c(2, 2)
-  attr(g_err, "optimization_info")[["post_probabilities"]] <- attr(g_err, "optimization_info")[["post_probabilities"]] + c(0, rep(1 / (len_post_prob - 1), len_post_prob - 1))
-  attr(g_err, "optimization_info")[["best_perm_log_posteriori"]] <- 7
-  attr(g_err, "optimization_info")[["optimization_time"]] <- I(NA)
-  expect_error(validate_gips(g_err))
 })
 
-test_that("Process proper parameters", {
-  expect_silent(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+test_that("Process proper parameters with check_find_MAP_arguments()", {
+  expect_silent(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = number_of_observations, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_silent(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+  expect_silent(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = number_of_observations, max_iter = 10,
     start_perm = gips_perm(example_perm, 6), delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
@@ -674,25 +346,25 @@ test_that("Process proper parameters", {
   ))
 })
 
-test_that("check_correctness_of_arguments() properly validates arguments", {
-  expect_silent(check_correctness_of_arguments(
+test_that("check_find_MAP_arguments() properly validates arguments", {
+  expect_silent(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
 
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     6, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     matrix(1:30, ncol = 5),
     number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     matrix(c(LETTERS, LETTERS)[1:36], ncol = 6),
     number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
@@ -701,7 +373,7 @@ test_that("check_correctness_of_arguments() properly validates arguments", {
 
   S_nonsymetric <- S
   S_nonsymetric[1, 2] <- S[1, 2] - 1
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S_nonsymetric,
     number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
@@ -709,124 +381,150 @@ test_that("check_correctness_of_arguments() properly validates arguments", {
   ))
 
   S_non_positive_semi_definite <- S - diag(ncol(S)) * eigen(S, symmetric = TRUE, only.values = TRUE)[["values"]][2]
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S_non_positive_semi_definite,
     number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, NULL, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, 0, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
+    S, 1, 30,
+    permutations::permutation("(1,3)(2,4)(5,6)"),
+    3, diag(nrow = ncol(S)), TRUE, FALSE, FALSE, FALSE
+  ), "`number_of_observations` must be at least 2")
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations + 0.1, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  list_error <- rlang::catch_cnd(check_find_MAP_arguments(
+    S, list(13), 30,
+    permutations::permutation("(1,3)(2,4)(5,6)"),
+    3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
+  ))
+  expect_match(conditionMessage(list_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(list_error), "type `list`", fixed = TRUE)
+  character_error <- rlang::catch_cnd(check_find_MAP_arguments(
+    S, "13", 30,
+    permutations::permutation("(1,3)(2,4)(5,6)"),
+    3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
+  ))
+  expect_match(conditionMessage(character_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(character_error), "type `character`", fixed = TRUE)
+  length_error <- rlang::catch_cnd(check_find_MAP_arguments(
+    S, c(13, 14), 30,
+    permutations::permutation("(1,3)(2,4)(5,6)"),
+    3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
+  ))
+  expect_match(conditionMessage(length_error), "`number_of_observations` must be a single whole number", fixed = TRUE)
+  expect_match(conditionMessage(length_error), "length 2", fixed = TRUE)
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30.1,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 1,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     "(1,3)(2,4)(5,6)",
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     gips_perm("(1,3)(2,4)(5,6)", 7),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     NULL, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_silent(check_correctness_of_arguments(
+  expect_silent(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     1.1, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     0.9, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     1, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S) + 1), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, 7, FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, matrix(1:30, nrow = ncol(S)), FALSE, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), "FALSE", FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, "FALSE", FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, "FALSE", FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, FALSE, FALSE, "FALSE"
   ))
 
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, diag(nrow = ncol(S)), FALSE, TRUE, FALSE, FALSE
   )) # return_probabilities can be TRUE only when save_all_perms is also TRUE
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, matrix(1:30, nrow = ncol(S)), NA, FALSE, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, matrix(1:30, nrow = ncol(S)), FALSE, NA, FALSE, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, matrix(1:30, nrow = ncol(S)), FALSE, FALSE, NA, FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations, 30,
     permutations::permutation("(1,3)(2,4)(5,6)"),
     3, matrix(1:30, nrow = ncol(S)), FALSE, FALSE, FALSE, NA
@@ -834,7 +532,7 @@ test_that("check_correctness_of_arguments() properly validates arguments", {
 
 
   # A lot of problems at once
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S, number_of_observations + 0.1, 1,
     "(1,3)(2,4)(5,6)",
     1, diag(nrow = ncol(S)), "FALSE", "FALSE", "FALSE", "FALSE"
@@ -842,131 +540,131 @@ test_that("check_correctness_of_arguments() properly validates arguments", {
 
   # old tests:
   # A single problem at the same time:
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S = NULL, number_of_observations, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(
+  expect_error(check_find_MAP_arguments(
     S = matrix(c(1:30), nrow = 6),
     number_of_observations, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = NULL, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = 0, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = 15.5, max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10.5,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 0,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 1,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = NULL, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = NULL, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 1, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = 7,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3,
     D_matrix = matrix(c(1:30), nrow = 6),
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3,
     D_matrix = NULL,
     was_mean_estimated = "FALSE", return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3,
     D_matrix = NULL,
     was_mean_estimated = NA, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = 7,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = NULL,
     save_all_perms = FALSE, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = "FALSE", show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = NA, show_progress_bar = FALSE
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
     save_all_perms = FALSE, show_progress_bar = 7
   ))
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm, number_of_observations,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm, number_of_observations,
     max_iter = 10,
     start_perm = example_perm, delta = 3, D_matrix = NULL,
     was_mean_estimated = FALSE, return_probabilities = FALSE,
@@ -975,7 +673,7 @@ test_that("check_correctness_of_arguments() properly validates arguments", {
 
 
   # A number of problems at the same time. Not all are printed:
-  expect_error(check_correctness_of_arguments(matrix_invariant_by_example_perm,
+  expect_error(check_find_MAP_arguments(matrix_invariant_by_example_perm,
     number_of_observations = -1, max_iter = 1,
     start_perm = example_perm, delta = 1, D_matrix = 7,
     was_mean_estimated = NA, return_probabilities = "FALSE",
@@ -1046,6 +744,7 @@ test_that("print.gips() works", {
 })
 
 test_that("plot.gips() works or abords for wrong arguments", {
+  skip_if_not_installed("ggplot2")
   custom_perm1 <- gips_perm("(1,2)(3,4,5,6)", 6)
   g1 <- gips(S, number_of_observations,
     was_mean_estimated = FALSE, perm = custom_perm1
@@ -1056,7 +755,7 @@ test_that("plot.gips() works or abords for wrong arguments", {
   expect_error(plot(g1, type = c("du", "pa")))
   expect_message(
     plot(g1),
-    "`type = NA` was automatically changed to `type = 'heatmap'`"
+    "`type` was automatically set to `type = 'heatmap'`"
   )
   expect_silent(my_ggplot1 <- plot(g1, type = "heatmap"))
   expect_silent(my_ggplot2 <- plot(g1, type = "MLE"))
@@ -1065,7 +764,7 @@ test_that("plot.gips() works or abords for wrong arguments", {
   g1_found <- find_MAP(g1, 3, show_progress_bar = FALSE, optimizer = "MH")
   expect_message(
     plot(g1_found),
-    "`type = NA` was automatically changed to `type = 'both'`"
+    "`type` was automatically set to `type = 'both'`"
   )
   expect_silent(plot(g1_found, type = "both"))
   expect_silent(plot(g1_found, type = "all", logarithmic_y = FALSE))
@@ -1079,9 +778,27 @@ test_that("plot.gips() works or abords for wrong arguments", {
     plot.gips(g1_found, type = "non_existing"),
     "Did You misspell the 'type' argument?"
   )
+  
+  # n0 only for M-H
+  g1 <- gips(diag(5), 10)
+  expect_error(
+    plot(g1, type = "n0"),
+    "For non-optimized `gips` objects only the `type = 'heatmap', 'MLE' or 'block_heatmap'` can be used."
+  )
+  g_MAP <- find_MAP(g1, optimizer = "BF", show_progress_bar = FALSE)
+  expect_error(
+    plot(g_MAP, type = "n0"),
+    "`type = 'n0'` can only be used with `gips` objects optimized using the Metropolis-Hastings algorithm"
+  )
+  
+  g_MAP_MH <- find_MAP(g1, optimizer = "MH", max_iter = 2, show_progress_bar = FALSE)
+  expect_silent(plot(g_MAP_MH, type = "n0"))
+  g_MAP_MH_2 <- find_MAP(g_MAP_MH, optimizer = "MH", max_iter = 2, show_progress_bar = FALSE)
+  expect_silent(plot(g_MAP_MH_2, type = "n0"))
 })
 
 test_that("plot.gips() works for books example", {
+  skip_if_not_installed("ggplot2")
   Z <- DAAG::oddbooks[, c(1, 2, 3)]
   Z$height <- Z$height / sqrt(2)
 
@@ -1133,14 +850,7 @@ test_that("summary.gips() works", {
     likelihood_ratio_test_p_value = likelihood_ratio_test_p_value,
     n0 = 2, S_matrix = S, number_of_observations = 13,
     was_mean_estimated = FALSE,
-    delta = 3, D_matrix = structure(c(
-      1, 0, 0, 0, 0, 0,
-      0, 1, 0, 0, 0, 0,
-      0, 0, 1, 0, 0, 0,
-      0, 0, 0, 1, 0, 0,
-      0, 0, 0, 0, 1, 0,
-      0, 0, 0, 0, 0, 1
-    ), .Dim = c(6L, 6L)),
+    delta = 3, D_matrix = diag(6),
     n_parameters = 7,
     AIC = AIC(g1),
     BIC = BIC(g1)
@@ -1150,7 +860,7 @@ test_that("summary.gips() works", {
 
   expect_output(
     print(summary(g1)),
-    "The number of observations is bigger than n0 for this permutation,\nso "
+    "The MLE estimator based on the found permutation does exist"
   )
 
   expect_output(
@@ -1481,4 +1191,17 @@ test_that("print.summary.gips() will not compare with original the unoptimized g
   
   pattern <- "Log_posteriori:\\s*(-?\\d+\\.\\d+)\\s\\sThe current permutation is id"
   expect_output(print(summary(g)), pattern) # The "Times more likely than starting permutation:" is skipped
+})
+
+
+test_that("summary() correctly identifies when model does not exist due to mean estimation", {
+  g <- gips(diag(4), 3, perm = "(1,2,3)")
+  s <- summary(g)
+  output <- capture.output(print(s))
+  
+  # The model should exist
+  expect_true(
+    any(grepl("The MLE estimator based on the found permutation does exist", output)),
+    info = "Model should exist as n >= n0"
+  )
 })

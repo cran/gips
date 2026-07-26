@@ -129,14 +129,98 @@ plot(g_map, type = "heatmap")
 g_map
 
 ## ----toy_example_data_show5---------------------------------------------------
-get_probabilities_from_gips(g_map)
+toy_probabilities <- get_probabilities_from_gips(g_map)
+toy_probabilities
 
 ## ----toy_example_data_show6---------------------------------------------------
-summary(g_map)$n0 # n0 = 4 <= 4 = number_of_observations
+summary(g_map)$n0 # compare n0 with number_of_observations
 
 S_projected <- project_matrix(S, g_map)
 S_projected
 sum(eigen(S_projected)$values > 0.00000001)
+
+## ----multi_sample_example_data------------------------------------------------
+p <- 5
+n1 <- 20
+n2 <- 23
+
+sigma_matrix_1 <- matrix(c(
+  1.50,  0.95,  0.95,  0.30, -0.05,
+  0.95,  1.50,  0.95,  0.30, -0.05,
+  0.95,  0.95,  1.50,  0.30, -0.05,
+  0.30,  0.30,  0.30,  2.40,  0.05,
+ -0.05, -0.05, -0.05,  0.05,  0.60
+), nrow = p, byrow = TRUE)
+
+sigma_matrix_2 <- matrix(c(
+  2.10,  1.40,  1.40, -0.35,  0.55,
+  1.40,  2.10,  1.40, -0.35,  0.55,
+  1.40,  1.40,  2.10, -0.35,  0.55,
+ -0.35, -0.35, -0.35,  0.80, -0.30,
+  0.55,  0.55,  0.55, -0.30,  2.80
+), nrow = p, byrow = TRUE)
+
+data_sample_1 <- withr::with_seed(21, 
+  MASS::mvrnorm(n1, mu = rep(0, p), Sigma = sigma_matrix_1)
+)
+
+data_sample_2 <- withr::with_seed(37, 
+  MASS::mvrnorm(n2, mu = rep(0, p), Sigma = sigma_matrix_2)
+)
+
+S1 <- cov(data_sample_1)
+S2 <- cov(data_sample_2)
+
+variable_names <- c("he", "ha", "hi", "hu", "hy")
+dimnames(S1) <- list(variable_names, variable_names)
+dimnames(S2) <- list(variable_names, variable_names)
+
+S_by_group <- list("Sample 1" = S1, "Sample 2" = S2)
+
+## ----multi_sample_plot--------------------------------------------------------
+g_multi <- gips(S_by_group, c(n1, n2))
+
+plot(g_multi, type = "MLE")
+
+## ----multi_sample_example_fit-------------------------------------------------
+g_multi_map <- find_MAP(g_multi,
+  optimizer = "brute_force",
+  return_probabilities = TRUE, save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+g_multi_map
+multi_probabilities <- get_probabilities_from_gips(g_multi_map)
+head(multi_probabilities, 5)
+
+## ----multi_sample_example_project---------------------------------------------
+S_multi_projected <- project_matrix(S_by_group, g_multi_map)
+
+round(S_multi_projected[[1]], 2)
+round(S_multi_projected[[2]], 2)
+
+plot(g_multi_map, type = "MLE")
+
+## ----multi_sample_single_group_comparison-------------------------------------
+g_1_map <- find_MAP(gips(S1, n1),
+  optimizer = "BF",
+  return_probabilities = TRUE,
+  save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+g_2_map <- find_MAP(gips(S2, n2),
+  optimizer = "BF",
+  return_probabilities = TRUE,
+  save_all_perms = TRUE,
+  show_progress_bar = FALSE
+)
+
+group_1_probabilities <- get_probabilities_from_gips(g_1_map)
+group_2_probabilities <- get_probabilities_from_gips(g_2_map)
+
+head(group_1_probabilities, 5)
+head(group_2_probabilities, 5)
 
 ## ----options_back, include = FALSE--------------------------------------------
 options(old_options) # back to the original options

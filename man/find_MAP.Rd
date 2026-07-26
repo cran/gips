@@ -23,7 +23,7 @@ for \code{optimizer = "HC"}, it can be infinite.}
 
 \item{optimizer}{The optimizer for the search of the maximum posteriori:
 \itemize{
-\item \code{"BF"} (the default for unoptimized \code{g} with \verb{perm size <= 9}) - Brute Force;
+\item \code{"BF"} (the default for unoptimized \code{g} with \verb{perm size <= 10}) - Brute Force;
 \item \code{"MH"} (the default for unoptimized \code{g} with \verb{perm size > 10}) - Metropolis-Hastings;
 \item \code{"HC"} - Hill Climbing;
 \item \code{"continue"} (the default for optimized \code{g}) - The same as
@@ -47,7 +47,7 @@ a list of all permutations visited during optimization.
 This can be useful sometimes but needs a lot more RAM.}
 
 \item{return_probabilities}{A boolean. \code{TRUE} can only be provided
-only when \code{save_all_perms = TRUE}. For:
+when \code{save_all_perms = TRUE}. For:
 \itemize{
 \item \code{optimizer = "MH"} - use Metropolis-Hastings results to
 estimate posterior probabilities;
@@ -56,17 +56,17 @@ calculate exact posterior probabilities.
 }
 
 These additional calculations are costly, so a second and third
-progress bar is shown (when \code{show_progress_bar = TRUE}).
+progress bars are shown (when \code{show_progress_bar = TRUE}).
 
 To examine probabilities after optimization,
 call \code{\link[=get_probabilities_from_gips]{get_probabilities_from_gips()}}.}
 }
 \value{
-Returns an optimized object of a \code{gips} class.
+An optimized object of a \code{gips} class.
 }
 \description{
 Use one of the optimization algorithms to find the permutation that
-maximizes a posteriori probability based on observed data.
+maximizes A Posteriori probability based on observed data.
 Not all optimization algorithms will always find the MAP, but they try
 to find a significant value. More information can be found in
 the "\strong{Possible algorithms to use as optimizers}" section below.
@@ -97,7 +97,7 @@ the \strong{Brute Force} algorithm that checks the whole permutation
 space of a given size. This algorithm will find
 the actual Maximum A Posteriori Estimation, but it is
 very computationally expensive for bigger spaces.
-We recommend Brute Force only for \code{p <= 9}.
+We recommend Brute Force only for \code{p <= 10}.
 For the time the Brute Force takes on our machines, see in the
 \code{vignette("Optimizers", package = "gips")} or in its
 \href{https://przechoj.github.io/gips/articles/Optimizers.html}{pkgdown page}.
@@ -116,9 +116,9 @@ This algorithm used in this context is a special case of the
 the \strong{hill climbing} algorithm;
 \href{https://en.wikipedia.org/wiki/Hill_climbing}{see Wikipedia}.
 The algorithm will check all transpositions in every iteration and
-go to the one with the biggest a posteriori value.
+go to the one with the biggest A Posteriori value.
 The optimization ends when all \emph{neighbors} will have a smaller
-a posteriori value. If the \code{max_iter} is reached before the end,
+A Posteriori value. If the \code{max_iter} is reached before the end,
 then the warning is shown, and it is recommended to continue
 the optimization on the output of the \code{find_MAP()} with
 \code{optimizer = "continue"}; see examples.
@@ -127,7 +127,17 @@ in every iteration. For bigger \code{p}, this may be costly.
 }
 }
 
+\section{Multi-sample}{
+
+If \code{g} was created with \code{gips(list(S1, S2, ...), c(n1, n2, ...))},
+the same optimizers search for one permutation shared by all groups.
+The optimized criterion is the combined log-posterior, i.e. the sum of
+per-group log-posteriors. The default optimizer is still chosen from the
+common matrix size \code{p}, and warnings about MLE existence use \code{min(n_g)}.
+}
+
 \examples{
+\dontshow{if (rlang::is_installed("ggplot2") && rlang::is_installed("MASS")) withAutoprint(\{ # examplesIf}
 require("MASS") # for mvrnorm()
 
 perm_size <- 5
@@ -152,13 +162,11 @@ g_map <- find_MAP(g, max_iter = 5, show_progress_bar = FALSE, optimizer = "Metro
 g_map
 
 g_map2 <- find_MAP(g_map, max_iter = 5, show_progress_bar = FALSE, optimizer = "continue")
-
-if (require("graphics")) {
-  plot(g_map2, type = "both", logarithmic_x = TRUE)
-}
+plot(g_map2, type = "both", logarithmic_x = TRUE)
 
 g_map_BF <- find_MAP(g, show_progress_bar = FALSE, optimizer = "brute_force")
 summary(g_map_BF)
+\dontshow{\}) # examplesIf}
 }
 \references{
 Piotr Graczyk, Hideyuki Ishi, Bartosz Kołodziejek, Hélène Massam.
