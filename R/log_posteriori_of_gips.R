@@ -36,16 +36,27 @@
 #'
 #' @section Multi-sample:
 #' When `g` is a multi-sample `gips` object (created with a list of matrices,
-#' e.g. `gips(list(S1, S2), c(n1, n2))`), the log-posterior is the sum of
-#' the independent single-sample log-posteriors across all G groups, using
-#' the per-group `number_of_observations`, `delta`, and `D_matrix` values:
+#' e.g. `gips(list(S1, S2), c(n1, n2))`), each sample has its own covariance
+#' matrix, while all samples share the same cyclic symmetry group.
+#' Under the package's assumptions of conditional independence of the samples
+#' and their precision-matrix priors given that group, and a uniform prior
+#' over cyclic groups,
 #'
-#' \deqn{\log P(\Gamma | S_1, \ldots, S_G) = \sum_{\ell=1}^{G} \log P(\Gamma | S_\ell)}
+#' \deqn{P(\Gamma \mid S_1, \ldots, S_G) \propto
+#'   \exp\left\{\sum_{j=1}^{G} \ell_j(\Gamma)\right\}.}{
+#'   P(Gamma | S_1, ..., S_G) is proportional to
+#'   exp(ell_1(Gamma) + ... + ell_G(Gamma)).
+#' }
+#'
+#' Here, \eqn{\ell_j(\Gamma)}{ell_j(Gamma)} is the single-sample unnormalized log-posterior
+#' weight, computed using that sample's `number_of_observations`, `delta`,
+#' and `D_matrix`. The function returns the sum of these log weights,
+#' without normalizing over symmetry groups.
 #'
 #' @returns The logarithm of an unnormalized A Posteriori.
 #'
 #' @examples
-#' # In the space with p = 2, there is only 2 permutations:
+#' # In the space with p = 2, there are only 2 permutations:
 #' perm1 <- permutations::as.cycle("(1)(2)")
 #' perm2 <- permutations::as.cycle("(1,2)")
 #' S1 <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE)
@@ -99,7 +110,7 @@ log_posteriori_of_gips <- function(g) {
 
 #' We recommend to use the `log_posteriori_of_gips()` function.
 #' 
-#' If You really want to use `log_posteriori_of_perm()`, remember
+#' If you really want to use `log_posteriori_of_perm()`, remember
 #'  to edit `number_of_observations` if the mean was estimated!
 #' 
 #' @noRd
@@ -128,7 +139,8 @@ log_posteriori_of_perm <- function(perm_proposal, S, number_of_observations,
     D_matrix <- diag(nrow = perm_size) # identity matrix
   }
 
-  structure_constants <- get_structure_constants(perm_proposal)
+  # Avoid repeating input validation for every optimization candidate.
+  structure_constants <- get_structure_constants_no_checks(perm_proposal)
 
   # Ac_part
   Ac <- sum(structure_constants[["r"]] * structure_constants[["k"]] * log(structure_constants[["k"]])) # (20)
@@ -146,10 +158,10 @@ log_posteriori_of_perm <- function(perm_proposal, S, number_of_observations,
   out <- Ac_part + G_part + phi_part
 
   if (is.infinite(out)) {
-    rlang::warn("The infinite value of a posteriori was produced.")
+    rlang::warn("The infinite value of the posterior was produced.")
   }
   if (is.nan(out)) {
-    rlang::warn("The NaN value of a posteriori was produced.")
+    rlang::warn("The NaN value of the posterior was produced.")
   }
 
   out
@@ -191,7 +203,7 @@ calculate_phi_part <- function(perm_proposal, number_of_observations, U,
   Uc <- Uc / 2
 
   # diagonalization
-  diagonalising_matrix <- prepare_orthogonal_matrix(perm_proposal)
+  diagonalising_matrix <- prepare_orthogonal_matrix_default_fast_(perm_proposal)
   Dc_diagonalised <- if (is_D_matrix_scalar_identity_matrix) {
     Dc
   } else {
@@ -202,17 +214,18 @@ calculate_phi_part <- function(perm_proposal, number_of_observations, U,
   # block part
   block_ends <- get_block_ends(structure_constants)
   Dc_block_log_dets <- if (is_D_matrix_scalar_identity_matrix) {
-    # Use the mean of numerically equal diagonal values as the scalar.
-      c(block_ends[1], diff(block_ends)) * log(mean(diag(Dc)))
+    c(block_ends[1], diff(block_ends)) * log(Dc[1, 1])
   } else {
     calculate_log_determinants_of_block_matrices(
       Dc_diagonalised,
-      block_ends
+      block_ends,
+      matrix_name = "projected D / 2"
     )
   }
   DcUc_block_log_dets <- calculate_log_determinants_of_block_matrices(
     DcUc_diagonalised,
-    block_ends
+    block_ends,
+    matrix_name = "projected (D + U) / 2"
   )
   Dc_exponent <- (delta - 2) / 2 + structure_constants[["dim_omega"]] /
     (structure_constants[["r"]] * structure_constants[["k"]])
@@ -231,24 +244,39 @@ calculate_phi_part <- function(perm_proposal, number_of_observations, U,
 #' @param diagonalized_matrix A middle matrix from decomposition 1.
 #' @param block_ends The indices of last columns of block matrices.
 #' Last element equals size of matrix.
+#' @param matrix_name A label identifying the projected matrix in error messages.
 #'
 #' @returns A numeric vector.
 #' @noRd
 calculate_log_determinants_of_block_matrices <- function(diagonalised_matrix,
-                                                         block_ends) {
+                                                         block_ends,
+                                                         matrix_name = "the supplied matrix") {
   block_starts <- c(1, block_ends[-length(block_ends)] + 1)
   out <- numeric(length(block_starts))
   
   for (i in seq_along(block_starts)) {
     slice <- block_starts[i]:block_ends[i]
     block_matrix <- diagonalised_matrix[slice, slice, drop = FALSE]
-    out[i] <- determinant(block_matrix, logarithm = TRUE)[["modulus"]]
+    # Blocks are symmetric by construction; chol() uses the upper triangle.
+    block_chol <- tryCatch(
+      chol(block_matrix, pivot = FALSE),
+      error = function(e) {
+        rlang::abort(c(
+          "Cannot calculate the posterior.",
+          "x" = paste0(
+            "Block ", i, " of ", matrix_name,
+            " is not numerically positive definite."
+          )
+        ), class = "not_positive_definite_block")
+      }
+    )
+    out[i] <- 2 * sum(log(diag(block_chol)))
   }
   
   out
 }
 
-#' Compare the posteriori probabilities of 2 permutations
+#' Compare the posterior probabilities of 2 permutations
 #'
 #' Check which permutation is more likely and how much more likely.
 #'
@@ -276,7 +304,7 @@ calculate_log_determinants_of_block_matrices <- function(diagonalised_matrix,
 #' @section Multi-sample:
 #' When comparing permutations for a multi-sample `gips` object, or when
 #' passing multi-sample arguments directly, the comparison uses the combined
-#' log-posterior (the sum of per-group log-posteriors). Two `gips` objects can
+#' unnormalized log-posterior (the sum of per-sample log weights). Two `gips` objects can
 #' be compared only when they are both single-sample or both multi-sample with
 #' the same data and hyperparameters.
 #'
@@ -375,14 +403,18 @@ compare_posteriories_of_perms <- function(perm1, perm2 = "()", S = NULL,
 check_compare_posteriories_arguments <- function(S, number_of_observations,
                                                  delta, D_matrix,
                                                  was_mean_estimated) {
-  if (is.list(S)) {
+  if (is.list(S) && !is.matrix(S)) {
     check_multi_S_list(S)
     G <- length(S)
     abort_text <- character(0)
     additional_info <- 0
 
     for (i in seq_len(G)) {
-      S_check <- check_S_matrix(S[[i]])
+      S_name <- paste0("S[[", i, "]]")
+      S_check <- check_S_matrix(S[[i]], name = S_name)
+      if (length(S_check$abort_text) > 0) {
+        S_check$abort_text[1] <- paste0("In `", S_name, "`: ", S_check$abort_text[1])
+      }
       abort_text <- c(abort_text, S_check$abort_text)
       additional_info <- additional_info + S_check$additional_info
     }
@@ -398,6 +430,7 @@ check_compare_posteriories_arguments <- function(S, number_of_observations,
 
     if (is.null(D_matrix)) {
       D_matrix <- lapply(S, function(y) diag(x = mean(diag(y)), nrow = ncol(y)))
+      abort_on_argument_problems(check_multi_D_matrices(D_matrix, S))
     }
 
     return(invisible(list(

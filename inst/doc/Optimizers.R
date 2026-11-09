@@ -18,12 +18,15 @@ library(gips)
 # # install.packages("pbmcapply")
 # library(pbmcapply)
 # 
-# get_gips_for_p <- function(p, n=30) {
+# get_gips_for_p <- function(p, n = 30) {
 #   S_inv <- diag(1, p, p)
 #   S_inv[1, 2:p] <- -1/sqrt(p)
 #   S_inv[2:p, 1] <- -1/sqrt(p)
 # 
-#   S <- solve(S_inv)
+#   Sigma <- chol2inv(chol(S_inv))
+#   Z <- matrix(rnorm(n * p), nrow = n) %*% chol(Sigma)
+#   S <- cov(Z)
+#   S <- (S + t(S)) / 2 # Ensure exact symmetry for gips().
 # 
 #   gips(S, n)
 # }
@@ -38,7 +41,8 @@ library(gips)
 #   as.numeric(attr(g_MAP, "optimization_info")$optimization_time, units = "secs")
 # }
 # 
-# benchmark_optimization <- function(n_reps = 2, n_cores = max(1L, parallel::detectCores() - 1L)) {
+# benchmark_optimization <- function(
+#     n_reps = 1, n_cores = 1, seed = 1234) {
 #   make_label <- function(optimizer, p, max_iter = NA) {
 #     if (is.na(max_iter)) {
 #       paste0(optimizer, " p=", p)
@@ -65,12 +69,22 @@ library(gips)
 # 
 #   jobs <- cases[rep(seq_len(nrow(cases)), each = n_reps), ]
 #   jobs$rep <- rep(seq_len(n_reps), times = nrow(cases))
-#   jobs$seed <- 1234
+#   jobs$seed <- seed + seq_len(nrow(jobs))
 # 
 #   rownames(jobs) <- NULL
 # 
 #   run_one_job <- function(j) {
 #     job <- jobs[j, ]
+# 
+#     # Warm up each worker on a small problem, outside the recorded timings.
+#     invisible(get_time(
+#       p = 6L,
+#       optimizer = job$optimizer,
+#       max_iter = if (is.na(job$max_iter)) NA else min(job$max_iter, 5L),
+#       seed = 1L
+#     ))
+# 
+#     # get_time() resets the seed before generating the measured sample.
 # 
 #     data.frame(
 #       label = job$label,
@@ -104,7 +118,8 @@ library(gips)
 # }
 # 
 # start_time <- Sys.time()
-# benchmark_results <- benchmark_optimization(n_reps = 7, n_cores = 7)
+# # For 1.4.0, consider increasing n_reps while keeping runs sequential.
+# benchmark_results <- benchmark_optimization(n_reps = 1, n_cores = 1, seed = 1234)
 # end_time <- Sys.time()
 # end_time - start_time
 # 
@@ -154,15 +169,13 @@ g_map
 
 ## ----Metropolis_Hastings_1----------------------------------------------------
 perm_size <- 70
-mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
-sigma_matrix <- (function(A) {
-  t(A) %*% A
-})(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
-# sigma_matrix is the real covariance matrix, that we want to estimate
 number_of_observations <- 50
-Z <- withr::with_seed(2022,
-  code = MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
-)
+Z <- withr::with_seed(2022, {
+  mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
+  sigma_matrix <- crossprod(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
+  # sigma_matrix is the real covariance matrix, that we want to estimate based on Z
+  MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
+})
 
 ## ----Metropolis_Hastings_2----------------------------------------------------
 dim(Z)
@@ -176,8 +189,15 @@ suppressMessages( # message from ggplot2
     ggplot2::scale_x_continuous(breaks = c(1, 10, 20, 30, 40, 50, 60, 70)) +
     ggplot2::scale_y_reverse(breaks = c(1, 10, 20, 30, 40, 50, 60, 70))
 )
-g_map <- find_MAP(g, max_iter = 150, optimizer = "Metropolis_Hastings")
+g_map <- withr::with_seed(2023,
+  code = find_MAP(g, max_iter = 150, optimizer = "Metropolis_Hastings")
+)
 g_map
+
+## ----Metropolis_Hastings_comparison, include=FALSE----------------------------
+log_gain <- compare_log_posteriories_of_perms(
+  g_map, g, print_output = FALSE
+)
 
 ## ----Metropolis_Hastings_3----------------------------------------------------
 plot(g_map, type = "best", logarithmic_x = TRUE)
@@ -234,15 +254,13 @@ plot(g_map, type = "best", logarithmic_x = TRUE)
 
 ## ----hill_climbing_1----------------------------------------------------------
 perm_size <- 25
-mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
-sigma_matrix <- (function(A) {
-  t(A) %*% A
-})(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
-# sigma_matrix is the real covariance matrix, that we want to estimate
 number_of_observations <- 20
-Z <- withr::with_seed(2022,
-  code = MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
-)
+Z <- withr::with_seed(2022, {
+  mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
+  sigma_matrix <- crossprod(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
+  # sigma_matrix is the real covariance matrix, that we want to estimate based on Z
+  MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
+})
 
 ## ----hill_climbing_2----------------------------------------------------------
 dim(Z)
@@ -252,23 +270,23 @@ S <- cov(Z) # Assume we have to estimate the mean
 
 g <- gips(S, number_of_observations)
 plot(g, type = "heatmap")
+# we will see a warning:
 g_map <- find_MAP(g, max_iter = 2, optimizer = "hill_climbing")
 g_map
 plot(g_map, type = "best")
 
 ## ----continuing_1-------------------------------------------------------------
-# the same code as for generating example for Metropolis-Hastings above
+# Generate data as in the Metropolis-Hastings example above,
+# with a fixed seed for all random draws.
 
 perm_size <- 70
-mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
-sigma_matrix <- (function(A) {
-  t(A) %*% A
-})(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
-# sigma_matrix is the real covariance matrix, that we want to estimate
 number_of_observations <- 50
-Z <- withr::with_seed(2022,
-  code = MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
-)
+Z <- withr::with_seed(2022, {
+  mu <- runif(perm_size, -10, 10) # Assume we don't know the mean
+  sigma_matrix <- crossprod(matrix(rnorm(perm_size * perm_size), nrow = perm_size))
+  # sigma_matrix is the real covariance matrix, that we want to estimate based on Z
+  MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix)
+})
 
 dim(Z)
 number_of_observations <- nrow(Z) # 50
@@ -278,12 +296,29 @@ S <- cov(Z) # Assume we have to estimate the mean
 ## ----continuing_2-------------------------------------------------------------
 g <- gips(S, number_of_observations)
 
-g_map <- find_MAP(g, max_iter = 50, optimizer = "Metropolis_Hastings")
+g_map <- withr::with_seed(2023,
+  code = find_MAP(g, max_iter = 50, optimizer = "Metropolis_Hastings")
+)
 plot(g_map, type = "best")
 
 ## ----continuing_3-------------------------------------------------------------
-g_map2 <- find_MAP(g_map, max_iter = 100, optimizer = "continue")
+g_map2 <- withr::with_seed(2024,
+  code = find_MAP(g_map, max_iter = 100, optimizer = "continue")
+)
 plot(g_map2, type = "best")
+log_gain <- compare_log_posteriories_of_perms(
+  g_map2, g_map, print_output = FALSE
+)
+
+## ----probabilities_HC_MH, message=FALSE---------------------------------------
+g_small <- gips(diag(c(1, 1.4, 2)), 8, was_mean_estimated = FALSE)
+g_hc <- find_MAP(g_small, optimizer = "HC", max_iter = Inf,
+  save_all_perms = TRUE, show_progress_bar = FALSE)
+set.seed(1)
+g_mh <- find_MAP(g_hc, optimizer = "MH", max_iter = 10,
+  save_all_perms = TRUE, return_probabilities = TRUE,
+  show_progress_bar = FALSE)
+get_probabilities_from_gips(g_mh)
 
 ## ----options_back, include = FALSE--------------------------------------------
 options(old_options) # back to the original options

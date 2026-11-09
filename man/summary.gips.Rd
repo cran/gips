@@ -34,27 +34,31 @@ very large and overflow to \code{Inf} or small and underflow to 0.
 \item \code{log_times_more_likely_than_id} - log of \code{times_more_likely_than_id}.
 \item \code{likelihood_ratio_test_statistics}, \code{likelihood_ratio_test_p_value} -
 statistics and p-value of Likelihood Ratio test, where
-the H_0 is that the data was drawn from the normal distribution
+the \eqn{H_0}{H0} is that the data was drawn from the normal distribution
 with Covariance matrix invariant under the given permutation.
 The p-value is calculated from the asymptotic distribution.
-Note that this is sensibly defined only for \eqn{n \ge p}.
-\item \code{n0} - the minimum number of observations needed for
-the covariance matrix's maximum likelihood estimator
-(corresponding to a MAP) to exist. See \strong{\eqn{C\sigma} and \code{n0}}
+For interpretation, see the \strong{Likelihood-ratio test} section in
+\code{vignette("Theory", package = "gips")}.
+Comparison with the unrestricted model requires \eqn{n \ge p},
+or \eqn{n \ge p + 1} when the mean was estimated.
+\item \code{n0} - the sample-size threshold: the number of permutation cycles,
+increased by one when \code{was_mean_estimated = TRUE}.
+The projection must also be numerically positive definite;
+see \code{MLE_available} below and \strong{\eqn{C_\sigma} and \code{n0}}
 section in \code{vignette("Theory", package = "gips")} or in its
 \href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}.
 \item \code{S_matrix} - the underlying matrix.
 This matrix will be used in calculations of
-the posteriori value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
+the posterior value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
 \item \code{number_of_observations} - the number of observations that
 were observed for the \code{S_matrix} to be calculated.
 This value will be used in calculations of
-the posteriori value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
+the posterior value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
 \item \code{was_mean_estimated} - given by the user while creating the \code{gips} object:
 \itemize{
-\item \code{TRUE} means the \code{S} parameter was the output of \code{\link[stats:cor]{stats::cov()}} function;
+\item \code{TRUE} means the \code{S} parameter was the output of \code{\link[stats:cov]{stats::cov()}} function;
 \item \code{FALSE} means the \code{S} parameter was calculated with
-\code{S = t(X) \%*\% X / number_of_observations}.
+\code{S = crossprod(X) / number_of_observations}.
 }
 \item \code{delta}, \code{D_matrix} - the hyperparameters of the Bayesian method.
 See the \strong{Hyperparameters} section of \code{\link[=gips]{gips()}} documentation.
@@ -72,35 +76,39 @@ value the found permutation has.
 represented before optimization. It is the first visited permutation.
 \item \code{start_permutation_log_posteriori} - the log of the A Posteriori
 value the start permutation has.
-\item \code{times_more_likely_than_start} - how many more likely
+\item \code{times_more_likely_than_start} - how many times more likely
 the \code{found_permutation} is over the \code{start_permutation}.
 It cannot be a number less than 1.
-Remember that this number can big and overflow to \code{Inf}.
+Remember that this number can become large and overflow to \code{Inf}.
 \item \code{log_times_more_likely_than_start} - log of
 \code{times_more_likely_than_start}.
 \item \code{likelihood_ratio_test_statistics}, \code{likelihood_ratio_test_p_value} -
 statistics and p-value of Likelihood Ratio test, where
-the H_0 is that the data was drawn from the normal distribution
+the \eqn{H_0}{H0} is that the data was drawn from the normal distribution
 with Covariance matrix invariant under \code{found_permutation}.
 The p-value is calculated from the asymptotic distribution.
-Note that this is sensibly defined only for \eqn{n \ge p}.
-\item \code{n0} - the minimal number of observations needed for the existence of
-the maximum likelihood estimator (corresponding to a MAP) of
-the covariance matrix (see \strong{\eqn{C\sigma} and \code{n0}}
+For interpretation, see the \strong{Likelihood-ratio test} section in
+\code{vignette("Theory", package = "gips")}.
+Comparison with the unrestricted model requires \eqn{n \ge p},
+or \eqn{n \ge p + 1} when the mean was estimated.
+\item \code{n0} - the sample-size threshold: the number of permutation cycles,
+increased by one when \code{was_mean_estimated = TRUE}.
+The projection must also be numerically positive definite;
+see \code{MLE_available} below and \strong{\eqn{C_\sigma} and \code{n0}}
 section in \code{vignette("Theory", package = "gips")} or in its
-\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}).
+\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}.
 \item \code{S_matrix} - the underlying matrix.
 This matrix will be used in calculations of
-the posteriori value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
+the posterior value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
 \item \code{number_of_observations} - the number of observations that
 were observed for the \code{S_matrix} to be calculated.
 This value will be used in calculations of
-the posteriori value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
+the posterior value in \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}}.
 \item \code{was_mean_estimated} - given by the user while creating the \code{gips} object:
 \itemize{
-\item \code{TRUE} means the \code{S} parameter was output of the \code{\link[stats:cor]{stats::cov()}} function;
+\item \code{TRUE} means the \code{S} parameter was output of the \code{\link[stats:cov]{stats::cov()}} function;
 \item \code{FALSE} means the \code{S} parameter was calculated with
-\code{S = t(X) \%*\% X / number_of_observations}.
+\code{S = crossprod(X) / number_of_observations}.
 }
 \item \code{delta}, \code{D_matrix} - the hyperparameters of the Bayesian method.
 See the \strong{Hyperparameters} section of \code{\link[=gips]{gips()}} documentation.
@@ -110,23 +118,26 @@ See the \strong{Hyperparameters} section of \code{\link[=gips]{gips()}} document
 in order (one could start optimization with "MH", and then
 do an "HC").
 \item \code{did_converge} - a boolean, did the last used algorithm converge.
-\item \code{number_of_log_posteriori_calls} - how many times was
-the \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}} function called during
-the optimization.
+\item \code{number_of_log_posteriori_calls} - the number of actual posterior
+evaluations during the recorded optimization.
+For multiple samples, one evaluation computes the joint objective.
 \item \code{whole_optimization_time} - how long was the optimization process;
 the sum of all optimization times (when there were multiple).
-\item \code{log_posteriori_calls_after_best} - how many times was
-the \code{\link[=log_posteriori_of_gips]{log_posteriori_of_gips()}} function called after
-the \code{found_permutation}; in other words, how long ago
-could the optimization be stopped and have the same result.
+\item \code{log_posteriori_calls_after_best} - the number of posterior evaluations
+after the best log-posterior value was first obtained.
 If this value is small, consider running \code{\link[=find_MAP]{find_MAP()}}
 again with \code{optimizer = "continue"}.
 For \code{optimizer = "BF"}, it is \code{NULL}.
-\item \code{acceptance_rate} - only interesting for \code{optimizer = "MH"}.
-How often was the algorithm accepting the change of permutation
-in an iteration.
+\item \code{acceptance_rate} - the fraction of eligible MH proposals accepted.
+Counts are pooled across MH stages, including in mixed histories;
+HC contributes to neither count. The value is \code{NULL} for histories
+without MH stages.
 }
 }
+
+Both summaries also contain \code{MLE_available}: whether the sample-size
+requirement is met and all projected covariance matrices pass the numerical
+positive-definiteness check used by \code{\link[=logLik]{logLik()}}.
 
 The function \code{print.summary.gips()} returns an invisible \code{NULL}.
 }
@@ -143,8 +154,10 @@ Prints every interesting information in a form pleasant for humans.
 
 For multi-sample \code{gips} objects the summary includes the number of groups G,
 the full vector of per-group sample sizes, and the total \code{n_parameters}
-(which equals \code{G * dim_omega(sigma)}). The n0 existence check uses
-\code{min(n_g)}. The Likelihood-Ratio test is not available for multi-sample
+(which equals \code{G * dim_omega(sigma)}). The sample-size check is
+\code{min(n_g) >= n0}, and every projected covariance matrix must be numerically
+positive definite for \code{MLE_available} to be \code{TRUE}.
+The Likelihood-Ratio test is not available for multi-sample
 objects and is reported as \code{NULL}.
 }
 

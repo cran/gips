@@ -7,16 +7,35 @@ knitr::opts_chunk[["set"]](
 
 old_options <- options(scipen = 999) # turn off scientific notation
 
-## ----symvariant_matrix, echo=FALSE--------------------------------------------
+## ----symvariant_matrix, echo=FALSE, fig.width=3.5, fig.height=3.5, fig.show='hold', out.width='49%'----
 X <- matrix(c(
-  1, 2, 3,
-  2, 4, 2,
-  3, 2, 1
+  4, 2, 3,
+  2, 7, 2,
+  3, 2, 4
 ), byrow = TRUE, ncol = 3, dimnames = list(
   c("X1", "X2", "X3"),
   c("X1", "X2", "X3")
 ))
-heatmap(X, Rowv = NA, Colv = NA, main = "", symm = TRUE)
+plot_invariant_matrix <- function(S, title) {
+  gips:::pretty_plot_matrix(S, title = title) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = covariance, colour = covariance > mean(range(covariance))),
+      fontface = "bold", size = 6
+    ) +
+    ggplot2::scale_colour_manual(
+      values = c("FALSE" = "white", "TRUE" = "black"), guide = "none"
+    ) +
+    ggplot2::coord_fixed() +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = 12, colour = "black"),
+      axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5),
+      axis.text.y = ggplot2::element_text(angle = 0),
+      legend.position = "none"
+    )
+}
+
+plot_invariant_matrix(X, "Original order")
+plot_invariant_matrix(X[c(3, 2, 1), c(3, 2, 1)], "After swapping X1 and X3")
 
 ## ----change_D_matrix_example0, include=FALSE----------------------------------
 plot_cosmetic_modifications <- function(gg_plot_object) {
@@ -66,7 +85,7 @@ S <- cov(Z)
 round(S, 1)
 g <- gips(S, number_of_observations)
 plot_cosmetic_modifications(plot(g, type = "heatmap")) +
-  ggplot2::ggtitle("Standard, MLE estimator\nof a covariance matrix")
+  ggplot2::ggtitle("Sample covariance matrix")
 
 ## ----change_D_matrix_example2-------------------------------------------------
 g_map <- find_MAP(g,

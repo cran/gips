@@ -11,7 +11,7 @@
 #' @param size An integer. Size of a permutation
 #'     (AKA the cardinality of the set on which the permutation is defined. See examples).
 #'
-#' @section Methods for a `gips` class:
+#' @section Methods for a `gips_perm` class:
 #' * [as.character.gips_perm()]
 #' * [print.gips_perm()]
 #'
@@ -29,7 +29,7 @@
 #' gperm <- gips_perm("(12)(45)", 5)
 #' gperm <- gips_perm("(1,2)(4,5)", 5)
 #' gperm <- gips_perm(as.matrix(c(2, 1, 3, 5, 4)), 5)
-#' gperm <- gips_perm(t(as.matrix(c(2, 1, 3, 5, 4))), 5) # both way for a matrix works
+#' gperm <- gips_perm(t(as.matrix(c(2, 1, 3, 5, 4))), 5) # both matrix orientations work
 #' gperm <- gips_perm(list(list(c(2, 1), c(4, 5))), 5)
 #' gperm <- gips_perm(permutations::as.word(c(2, 1, 3, 5, 4)), 5)
 #' gperm <- gips_perm(permutations::as.cycle("(1,2)(4,5)"), 5)
@@ -44,6 +44,26 @@
 #'
 #' @export
 gips_perm <- function(x, size) {
+  if (rlang::is_missing(size)) {
+    rlang::abort(c("There was a problem identified with provided argument:",
+      "i" = "`size` argument must be provided.",
+      "x" = "You did not provide the `size` argument."
+    ))
+  }
+  if (length(size) > 1) {
+    rlang::warn(c("Passing multiple sizes to `gips_perm()` is not supported. Taking only the first one.",
+      "i" = paste0("You provided ", length(size), " sizes.")
+    ))
+    size <- size[1]
+  }
+  if (length(size) != 1L || !is.numeric(size) || is.complex(size) ||
+      !is.finite(size) || size < 0 || size != floor(size)) {
+    rlang::abort(c("There was a problem identified with provided argument:",
+      "i" = "`size` must be a single finite non-negative integer.",
+      "x" = paste0("You provided `size == ", size, "`.")
+    ))
+  }
+
   if (inherits(x, "gips")) {
     validate_gips(x)
     if (attr(x[[1]], "size") != size) {
@@ -67,24 +87,6 @@ gips_perm <- function(x, size) {
       ))
     }
   }
-  if (rlang::is_missing(size)) {
-    rlang::abort(c("There was a problem identified with provided argument:",
-      "i" = "`size` argument must be provided.",
-      "x" = "You did not provide the `size` argument."
-    ))
-  }
-  if (length(size) > 1) {
-    rlang::warn(c("Passing multiple sizes to `gips_perm()` is not supported. Taking only the first one.",
-      "i" = paste0("You provided ", length(size), " sizes.")
-    ))
-    size <- size[1]
-  }
-  if (!is.wholenumber(size)) {
-    rlang::abort(c("There was a problem identified with provided argument:",
-      "i" = "`size` must be a whole number.",
-      "x" = paste0("You provided `size == ", size, "`.")
-    ))
-  }
   x <- permutations::as.cycle(x)
 
   if (length(unclass(x)) > 1) { # this could be checked prior to `permutations::permutation()`, but I think this will almost never be a problem
@@ -99,7 +101,7 @@ gips_perm <- function(x, size) {
   }
 
   if (permutations::is.id(x)) {
-    x <- as.list(1:size)
+    x <- as.list(seq_len(size))
     return(new_gips_perm(x, size)) # rearrange_cycles is not needed, because `identical(rearrange_cycles(x), x)`
   }
 
@@ -199,19 +201,22 @@ validate_gips_perm <- function(g) {
     )
   }
   size_attr <- attr(g, "size")
-  if (is.null(size_attr) || !is.wholenumber(size_attr) || length(size_attr) != 1) {
-    wrong_argument_abort(i = "`g` must have an attribute `size` set as a single integer.")
+  if (length(size_attr) != 1L || !is.numeric(size_attr) || is.complex(size_attr) ||
+      !is.finite(size_attr) || size_attr < 0 || size_attr != floor(size_attr)) {
+    wrong_argument_abort(i = "`g` must have an attribute `size` set as a single finite non-negative integer.")
   }
-  is_whole_number <- unlist(sapply(g, is.wholenumber))
+  is_whole_number <- vapply(g, function(cycle) {
+    is.numeric(cycle) && !is.complex(cycle) && is.null(dim(cycle)) &&
+      length(cycle) > 0L && all(is.finite(cycle)) && all(cycle == floor(cycle))
+  }, FALSE)
   if (!all(is_whole_number)) {
-    wrong_element_index <- which(!is_whole_number)[1]
-    wrong_argument_abort(i = "All elements of `g` must be integer vectors.")
+    wrong_argument_abort(i = "All elements of `g` must be non-empty vectors of finite integers.")
   }
   all_ints <- unlist(g)
   if (length(all_ints) != length(unique(all_ints))) {
     wrong_argument_abort(i = "Elements of cycles must not repeat across or within cycles.")
   }
-  first_element_is_min <- sapply(g, which.min) == 1
+  first_element_is_min <- vapply(g, which.min, integer(1)) == 1
   if (!all(first_element_is_min)) {
     wrong_element_index <- which(!first_element_is_min)[1]
     wrong_argument_abort(
@@ -224,11 +229,11 @@ validate_gips_perm <- function(g) {
       )
     )
   }
-  not_sorted_by_first <- is.unsorted(sapply(g, function(v) v[1]))
+  not_sorted_by_first <- is.unsorted(vapply(g, function(v) v[1], numeric(1)))
   if (not_sorted_by_first) {
     wrong_argument_abort(i = "Cycles must appear in order determined by their first elements.")
   }
-  if (attr(g, "size") < max(all_ints)) {
+  if (length(all_ints) > 0L && size_attr < max(all_ints)) {
     wrong_argument_abort(
       i = "`size` attribute must be greater or equal to largest integer in elements of `g`.",
       x = paste0(
@@ -236,6 +241,11 @@ validate_gips_perm <- function(g) {
         "` while the maximum element is ",
         max(all_ints), "."
       )
+    )
+  }
+  if (length(all_ints) != size_attr || any(all_ints < 1)) {
+    wrong_argument_abort(
+      i = "Cycles must form a complete permutation of 1, ..., `size`, including fixed points."
     )
   }
   g

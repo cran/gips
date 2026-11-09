@@ -48,6 +48,16 @@ test_that("gips_perm works for identity", {
   )
 })
 
+test_that("gips_perm constructs valid identities of sizes zero and one", {
+  empty <- gips_perm("()", 0)
+  expect_equal(empty, new_gips_perm(list(), 0))
+  expect_silent(validate_gips_perm(empty))
+
+  singleton <- gips_perm("()", 1)
+  expect_equal(singleton, new_gips_perm(list(1L), 1))
+  expect_silent(validate_gips_perm(singleton))
+})
+
 test_that("gips_perm gives the same output for different type of input", {
   gperm1 <- gips_perm("(12)(45)", 5)
   gperm2 <- gips_perm("(1,2)(4,5)", 5)
@@ -192,6 +202,37 @@ test_that("gips_perm handles bad arguments", {
 })
 
 
+test_that("gips_perm rejects invalid sizes before returning an object", {
+  inputs <- list("()", "(1,2)", permutations::nullword, gips(diag(3), 10))
+  invalid_sizes <- list(
+    NULL, numeric(0), NA_real_, NaN, Inf, -Inf,
+    -1, 3.5, 3 + 1e-9, "3", 3 + 0i, TRUE
+  )
+
+  for (x in inputs) {
+    for (size in invalid_sizes) {
+      expect_error(
+        perm <- gips_perm(x, size),
+        "`size` must be a single finite non-negative integer.",
+        fixed = TRUE, class = "rlang_error"
+      )
+    }
+  }
+})
+
+test_that("gips_perm handles size before returning a gips object's permutation", {
+  g <- gips(diag(3), 10)
+  expect_error(
+    perm <- gips_perm(g), "You did not provide the `size` argument.",
+    fixed = TRUE, class = "rlang_error"
+  )
+  expect_warning(
+    perm <- gips_perm(g, c(3, 4)), "Taking only the first one.",
+    fixed = TRUE
+  )
+  expect_identical(perm, g[[1]])
+})
+
 test_that("validate_gips works properly", {
   not_gips_perm <- "A"
   not_a_list <- structure("A", class = "gips_perm")
@@ -223,6 +264,59 @@ test_that("validate_gips works properly", {
   expect_error(validate_gips_perm(not_sorted_internally), "First element .* minimum")
   expect_error(validate_gips_perm(cycles_not_sorted), "order determined by their first elements")
   expect_error(validate_gips_perm(small_size), "size")
+})
+
+test_that("validate_gips_perm requires a finite non-negative integer size", {
+  invalid_sizes <- list(
+    NULL, numeric(0), c(3, 3), NA_real_, NaN, Inf, -Inf,
+    -1, 3.5, 3 + 1e-9, "3", 3 + 0i, TRUE
+  )
+  for (size in invalid_sizes) {
+    perm <- new_gips_perm(list(1:3), 3)
+    attr(perm, "size") <- size
+    expect_error(
+      validate_gips_perm(perm), "single finite non-negative integer",
+      fixed = TRUE, class = "rlang_error"
+    )
+  }
+})
+
+test_that("validate_gips_perm rejects incomplete permutations and nonpositive points", {
+  invalid_cycles <- list(
+    list(1:2), list(c(1L, 3L)), list(2:3), list(),
+    list(c(0L, 1L, 2L)), list(c(-1L, 1L, 2L))
+  )
+  for (cycles in invalid_cycles) {
+    expect_error(
+      validate_gips_perm(new_gips_perm(cycles, 3)), "complete permutation",
+      fixed = TRUE, class = "rlang_error"
+    )
+  }
+})
+
+test_that("validate_gips_perm rejects malformed cycles before checking their order", {
+  invalid_cycles <- list(
+    integer(0), NULL, "1", TRUE, matrix(1:3, nrow = 1),
+    c(1, NA_real_, 3), c(1, NaN, 3), c(1, Inf, 3), c(1, -Inf, 3),
+    c(1, 2.5, 3), c(1, 2 + 1e-9, 3), c(1, 2 + 0i, 3)
+  )
+  for (cycle in invalid_cycles) {
+    expect_error(
+      validate_gips_perm(new_gips_perm(list(cycle), 3)),
+      "non-empty vectors of finite integers",
+      fixed = TRUE, class = "rlang_error"
+    )
+  }
+})
+
+test_that("validate_gips_perm accepts complete permutations including sizes zero and one", {
+  perm <- gips_perm("(1,2)", 3)
+  expect_equal(perm, new_gips_perm(list(1:2, 3L), 3))
+
+  for (valid_perm in list(new_gips_perm(list(), 0), gips_perm("()", 1), perm)) {
+    expect_silent(validated <- validate_gips_perm(valid_perm))
+    expect_identical(validated, valid_perm)
+  }
 })
 
 test_that("object of gips_perm class can be printed", {

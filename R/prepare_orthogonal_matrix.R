@@ -5,7 +5,7 @@
 #'
 #' Let \eqn{X} be a matrix invariant under the permutation `perm`.
 #' Let the permutations cyclic group for it be called Gamma:
-#' \eqn{\Gamma = <perm> = \{perm, perm^2, ...\}}.
+#' \eqn{\Gamma = <perm> = \{perm, perm^2, ...\}}{Gamma = <perm> = \{perm, perm^2, ...\}}.
 #'
 #' Then \eqn{U_\Gamma} is an orthogonal matrix that block-diagonalizes \eqn{X}.
 #'
@@ -27,7 +27,7 @@
 #'     Required if `perm` is neither `gips_perm` nor `gips`.
 #' @param basis A matrix with basis vectors in COLUMNS; identity by default.
 #' @returns A square matrix of size `perm_size` by `perm_size` with
-#'     columns from vector elements \eqn{v_k^{(c)}} according to
+#'     columns from vector elements \eqn{v_k^{(c)}}{v_k^(c)} according to
 #'     [Theorem 6 from references](https://arxiv.org/abs/2004.03503).
 #'
 #' @references Piotr Graczyk, Hideyuki Ishi, Bartosz Kołodziejek, Hélène Massam.
@@ -52,7 +52,7 @@
 #' number_of_observations <- 10
 #' X <- matrix(rnorm(5 * number_of_observations), number_of_observations, 5)
 #' S <- cov(X)
-#' X <- project_matrix(S, perm = gperm) # this matrix in invariant under gperm
+#' X <- project_matrix(S, perm = gperm) # this matrix is invariant under gperm
 #'
 #' block_decomposition <- t(U_Gamma) %*% X %*% U_Gamma
 #' round(block_decomposition, 5) # the non-zeros only on diagonal and [1,2] and [2,1]
@@ -65,6 +65,7 @@ prepare_orthogonal_matrix <- function(perm, perm_size = NULL, basis = NULL) {
   if (!inherits(perm, "gips_perm")) {
     perm <- gips_perm(perm, perm_size)
   }
+  validate_gips_perm(perm)
   if (is.null(basis)) {
     return(prepare_orthogonal_matrix_default_fast_(perm))
   }
@@ -131,7 +132,7 @@ prepare_orthogonal_matrix_default_fast_ <- function(perm) {
 #' Get V matrix
 #'
 #' @param subcycle An integer vector interpreted as cycle of a permutation.
-#' @param basis An ortogonal matrix.
+#' @param basis An orthogonal matrix.
 #' @returns A matrix p x length(subcycle).
 #' Essentially a object v_k^c for one c value from paper, defined right before
 #' Theorem 6.

@@ -21,12 +21,12 @@ At least 2. For \code{optimizer = "BF"}, it is not used;
 for \code{optimizer = "MH"}, it has to be finite;
 for \code{optimizer = "HC"}, it can be infinite.}
 
-\item{optimizer}{The optimizer for the search of the maximum posteriori:
+\item{optimizer}{The optimizer used to find the maximum a posteriori estimate:
 \itemize{
 \item \code{"BF"} (the default for unoptimized \code{g} with \verb{perm size <= 10}) - Brute Force;
 \item \code{"MH"} (the default for unoptimized \code{g} with \verb{perm size > 10}) - Metropolis-Hastings;
 \item \code{"HC"} - Hill Climbing;
-\item \code{"continue"} (the default for optimized \code{g}) - The same as
+\item \code{"continue"} (the default for \code{g} optimized with MH or HC) - The same as
 the \code{g} was optimized by (see Examples).
 }
 
@@ -37,26 +37,29 @@ section below for more details.}
 Indicate whether or not to show the progress bar:
 \itemize{
 \item When \code{max_iter} is infinite, \code{show_progress_bar} has to be \code{FALSE};
-\item When \code{return_probabilities = TRUE}, then
-shows an additional progress bar for the time
-when the probabilities are calculated.
+\item When \code{return_probabilities = TRUE}, an additional progress bar shows
+probability calculation. For BF with \verb{perm size <= 10}, it tracks
+preparation of probability names.
 }}
 
 \item{save_all_perms}{A boolean. \code{TRUE} indicates saving
 a list of all permutations visited during optimization.
-This can be useful sometimes but needs a lot more RAM.}
+This can be useful sometimes but needs a lot more RAM.
+The \code{n0} history is saved for every optimizer regardless of this setting
+and can be displayed with \code{plot(g_map, type = "n0")}.}
 
 \item{return_probabilities}{A boolean. \code{TRUE} can only be provided
 when \code{save_all_perms = TRUE}. For:
 \itemize{
-\item \code{optimizer = "MH"} - use Metropolis-Hastings results to
-estimate posterior probabilities;
-\item \code{optimizer = "BF"} - use brute force results to
-calculate exact posterior probabilities.
+\item \code{optimizer = "MH"} - normalize posterior weights over distinct
+visited cyclic groups, giving probabilities conditional on that set;
+\item \code{optimizer = "BF"} - calculate the full posterior over all cyclic groups.
 }
 
-These additional calculations are costly, so a second and third
-progress bars are shown (when \code{show_progress_bar = TRUE}).
+Each group contributes one weight, regardless of visit counts or the
+number of its generators encountered. MH continuation includes earlier
+MH and HC visits; keep \code{save_all_perms = TRUE} in every stage.
+Standalone HC does not support this option.
 
 To examine probabilities after optimization,
 call \code{\link[=get_probabilities_from_gips]{get_probabilities_from_gips()}}.}
@@ -76,8 +79,10 @@ the "\strong{Possible algorithms to use as optimizers}" section below.
 \itemize{
 \item the optimizer "hill_climbing" gets to the end of
 its \code{max_iter} without converging.
-\item the optimizer will find the permutation with smaller \code{n0} than
-\code{number_of_observations} (for more information on what it means,
+\item the selected permutation has \code{n0 > number_of_observations}, or
+\code{n0 > min(number_of_observations)} for multiple samples.
+The threshold \code{n0} already includes the additional observation required
+when \code{was_mean_estimated = TRUE} (for more information,
 see \strong{\eqn{C_\sigma} and \code{n0}} section
 in the \code{vignette("Theory", package = "gips")} or in its
 \href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}).
@@ -127,17 +132,34 @@ in every iteration. For bigger \code{p}, this may be costly.
 }
 }
 
+\section{Repeated optimization}{
+
+MH and HC results can be optimized further, including with BF.
+If the last optimization used BF, any further call to \code{find_MAP()} is
+rejected, including after \code{\link[=forget_perms]{forget_perms()}}, because the whole permutation
+space has already been searched.
+
+When the last stage used MH, \code{optimizer = "continue"} resumes from the
+last visited state and records the shared boundary state only once,
+even when earlier stages used HC.
+Repeated visits after rejected proposals remain in the history.
+An explicit \code{optimizer = "MH"} starts from the best model found so far and
+retains the starting state of the new stage.
+}
+
 \section{Multi-sample}{
 
 If \code{g} was created with \code{gips(list(S1, S2, ...), c(n1, n2, ...))},
 the same optimizers search for one permutation shared by all groups.
-The optimized criterion is the combined log-posterior, i.e. the sum of
-per-group log-posteriors. The default optimizer is still chosen from the
-common matrix size \code{p}, and warnings about MLE existence use \code{min(n_g)}.
+The optimized criterion is the combined unnormalized log-posterior, i.e.
+the sum of per-sample log weights. The default optimizer is still chosen from the
+common matrix size \code{p}. A sample-size warning is issued when \code{min(n_g) < n0}.
+Passing this check alone does not guarantee MLE availability: every projected
+covariance matrix must also be numerically positive definite. Use
+\code{summary(g)$MLE_available} on the returned object to check both conditions.
 }
 
 \examples{
-\dontshow{if (rlang::is_installed("ggplot2") && rlang::is_installed("MASS")) withAutoprint(\{ # examplesIf}
 require("MASS") # for mvrnorm()
 
 perm_size <- 5
@@ -166,7 +188,6 @@ plot(g_map2, type = "both", logarithmic_x = TRUE)
 
 g_map_BF <- find_MAP(g, show_progress_bar = FALSE, optimizer = "brute_force")
 summary(g_map_BF)
-\dontshow{\}) # examplesIf}
 }
 \references{
 Piotr Graczyk, Hideyuki Ishi, Bartosz Kołodziejek, Hélène Massam.

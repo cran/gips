@@ -30,12 +30,14 @@ observations.
     as an exploratory tool for searching the space of permutation
     symmetries of the Gaussian vector. Useful in the Exploratory Data
     Analysis (EDA).
-2.  Covariance estimation. The Maximum Likelihood Estimator (MLE) for
-    the covariance matrix is known to exist if and only if the number of
-    variables is less or equal to the number of observations. Additional
-    knowledge of symmetries significantly weakens this requirement.
-    Moreover, the reduction of model dimension brings the advantage in
-    terms of precision of covariance estimation.
+2.  Covariance estimation. For an i.i.d. sample from a nondegenerate
+    Gaussian distribution, the unrestricted covariance Maximum
+    Likelihood Estimator (MLE) exists almost surely if and only if
+    $n \ge p$ when the mean is known to be zero, or $n \ge p + 1$ when
+    the mean is estimated. Here, $n$ is the number of observations and
+    $p$ the number of variables. Symmetry constraints can lower this
+    sample-size requirement. Moreover, the reduction of model dimension
+    brings the advantage in terms of precision of covariance estimation.
 
 ## Installation
 
@@ -95,7 +97,7 @@ Remember, we analyze the covariance matrix. We can see some nearly
 identical colors in the estimated covariance matrix. E.g., variances of
 columns 1 and 2 are very similar (`S[1,1]` $\approx$ `S[2,2]`), and
 variances of columns 3 and 4 are very similar (`S[3,3]` $\approx$
-`S[4,4]`). What is more, Covariances are also similar (`S[1,3]`
+`S[4,4]`). What is more, covariances are also similar (`S[1,3]`
 $\approx$ `S[1,4]` $\approx$ `S[2,3]` $\approx$ `S[2,4]`). Are those
 approximate equalities coincidental? Or do they reflect some underlying
 data properties? It is hard to decide purely by looking at the matrix.
@@ -110,7 +112,7 @@ g_MAP <- find_MAP(g, optimizer = "brute_force")
 
 g_MAP
 #> The permutation (1,2)(3,4):
-#>  - was found after 17 posteriori calculations;
+#>  - was found in a search using 17 posterior calculations;
 #>  - is 3.374 times more likely than the () permutation.
 ```
 
@@ -172,8 +174,8 @@ Z <- withr::with_seed(2022,
 <img src="man/figures/README-example_mean_known1_1-1.png" alt="" width="100%" />
 
 Suppose we do not know the actual covariance matrix $\Sigma$ and we want
-to estimate it. We cannot use the standard MLE because it does not
-exists ($4 < 6$, $n < p$).
+to estimate it. We cannot use the standard MLE because it does not exist
+($4 < 6$, $n < p$).
 
 We will assume it was generated from the normal distribution with the
 mean $0$.
@@ -186,7 +188,7 @@ number_of_observations <- nrow(Z) # 4
 p <- ncol(Z) # 6
 
 # Calculate the covariance matrix from the data:
-S <- (t(Z) %*% Z) / number_of_observations
+S <- crossprod(Z) / number_of_observations
 ```
 
 Make the gips object out of data:
@@ -196,7 +198,7 @@ g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
 ```
 
 We can see the standard estimator of the covariance matrix:
-$$\hat{\Sigma} = (1/n) \cdot  \Sigma_{i=1}^n \Big( Z^{(i)}\cdot\big({Z^{(i)}}^\top\big) \Big)$$
+$$\hat{\Sigma} = (1/n) \cdot  \sum_{i=1}^n \Big( Z^{(i)}\cdot\big({Z^{(i)}}^\top\big) \Big)$$
 It is not MLE (again, because MLE does not exist for $n < p$):
 
 ``` r
@@ -214,7 +216,7 @@ g_map <- find_MAP(g, optimizer = "brute_force")
 
 g_map
 #> The permutation (1,2,3,4,5,6):
-#>  - was found after 362 posteriori calculations;
+#>  - was found in a search using 362 posterior calculations;
 #>  - is 118.863 times more likely than the () permutation.
 ```
 
@@ -227,11 +229,16 @@ summary(g_map)$n0
 #> [1] 1
 summary(g_map)$n0 <= number_of_observations # 1 <= 4
 #> [1] TRUE
+summary(g_map)$MLE_available
+#> [1] TRUE
 ```
 
 What is more, we see the number of observations (4) is bigger than or
-equal to $n_0 = 1$, so we can estimate the covariance matrix with the
-Maximum Likelihood estimator:
+equal to $n_0 = 1$. The sample-size requirement is therefore met.
+`summary(g_map)$MLE_available` also checks that the projected covariance
+matrix is numerically positive definite. With the known zero mean
+assumed in this example, the projection gives the covariance MLE when
+both checks pass:
 
 ``` r
 S_projected <- project_matrix(S, g_map)
@@ -257,6 +264,14 @@ and additional reasonable assumptions.
 Note that the rank of the `S` matrix was 4, while the rank of the
 `S_projected` matrix was 6 (full rank).
 
+`gips` also supports multiple independent samples with a shared
+permutation symmetry and separate covariance matrices. Supply a list of
+sample covariance matrices and a vector of sample sizes; all matrices
+must describe the same variables in the same order. See the
+[Multi-sample
+example](https://przechoj.github.io/gips/articles/gips.html#multi-sample-example)
+in the introductory vignette for a complete workflow.
+
 # Further reading
 
 For more examples and introduction, see
@@ -264,9 +279,9 @@ For more examples and introduction, see
 page](https://przechoj.github.io/gips/articles/gips.html).
 
 For an in-depth analysis of the package performance, capabilities, and
-comparison with similar packages, see the article “Learning permutation
-symmetries with gips in R” by `gips` developers Adam Chojecki, Paweł
-Morgen, and Bartosz Kołodziejek, [Journal of Statistical
+comparison with similar packages, see the article “Learning Permutation
+Symmetry of a Gaussian Vector with gips in R” by `gips` developers Adam
+Chojecki, Paweł Morgen, and Bartosz Kołodziejek, [Journal of Statistical
 Software](https://doi.org/10.18637/jss.v112.i07).
 
 # Acknowledgment

@@ -1,5 +1,190 @@
 # Tests for internal plot helpers and plot.gips() convergence output
 
+test_that("default y scale follows the resolved plot type", {
+  g <- gips(diag(3), 10, was_mean_estimated = FALSE)
+  # A fixed history isolates plotting from the stochastic optimizer.
+  attr(g, "optimization_info") <- list(
+    optimization_algorithm_used = "Metropolis_Hastings",
+    all_n0 = c(3, 1, 2),
+    log_posteriori_values = c(-3, -2, -4)
+  )
+
+  linear_n0 <- plot(g, type = "n0")
+  expect_equal(linear_n0$data$value, c(3, 1, 2))
+  expect_equal(linear_n0$labels$x, "recorded permutation index")
+  expect_equal(linear_n0$labels$y, "n0")
+  expect_equal(linear_n0$coordinates$limits$y, c(1, 3))
+
+  log_n0 <- plot(g, type = "n0", logarithmic_y = TRUE)
+  expect_equal(log_n0$data$value, log(c(3, 1, 2)))
+  expect_equal(log_n0$labels$y, "log n0")
+  expect_equal(log_n0$coordinates$limits$y, c(0, log(3)))
+  expect_equal(
+    plot(g, type = "n0", logarithmic_x = TRUE)$labels$x,
+    "log10 of recorded permutation index"
+  )
+
+  for (type in c("all", "best", "both")) {
+    expect_equal(
+      plot(g, type = type)$data,
+      plot(g, type = type, logarithmic_y = TRUE)$data
+    )
+  }
+  expect_equal(
+    plot(g, type = "all", logarithmic_y = FALSE)$data$value,
+    exp(c(-3, -2, -4))
+  )
+  expected <- plot(g, type = "both", logarithmic_y = TRUE)
+  expect_message(automatic <- plot(g), "type = 'both'", fixed = TRUE)
+  expect_message(explicit_na <- plot(g, type = NA), "type = 'both'", fixed = TRUE)
+  expect_equal(automatic$data, expected$data)
+  expect_equal(explicit_na$data, expected$data)
+})
+
+
+test_that("n0 plots retain the complete trajectory for every optimizer history", {
+  g <- gips(diag(4), 10, was_mean_estimated = FALSE)
+  # Fixed histories isolate rendering from optimizer storage and randomness.
+  algorithms <- list(
+    "hill_climbing",
+    "brute_force",
+    c("hill_climbing", "Metropolis_Hastings"),
+    c("Metropolis_Hastings", "hill_climbing"),
+    c("hill_climbing", "Metropolis_Hastings", "hill_climbing")
+  )
+  for (history in algorithms) {
+    attr(g, "optimization_info") <- list(
+      optimization_algorithm_used = history,
+      all_n0 = c(4, 3, 3, 2)
+    )
+    for (logarithmic_y in c(FALSE, TRUE)) {
+      expect_silent(p <- plot(g, type = "n0", logarithmic_y = logarithmic_y))
+      expected <- if (logarithmic_y) log(c(4, 3, 2)) else c(4, 3, 2)
+      expect_equal(p$data$step, c(1L, 2L, 4L))
+      expect_equal(p$data$value, expected)
+      expect_silent(built <- ggplot2::ggplot_build(p))
+      expect_equal(built$data[[1]]$x, c(1, 2, 4))
+      expect_equal(built$data[[1]]$y, expected)
+    }
+  }
+})
+
+test_that("a one-state HC history is drawn as a visible n0 point", {
+  g <- gips(diag(3), 10, was_mean_estimated = FALSE)
+  attr(g, "optimization_info") <- list(
+    optimization_algorithm_used = "hill_climbing",
+    all_n0 = 1
+  )
+  for (logarithmic_y in c(FALSE, TRUE)) {
+    p <- plot(g, type = "n0", logarithmic_y = logarithmic_y)
+    expect_s3_class(p$layers[[1]]$geom, "GeomPoint")
+    expect_silent(built <- ggplot2::ggplot_build(p))
+    expect_equal(built$data[[1]]$x, 1)
+    expect_equal(built$data[[1]]$y, if (logarithmic_y) 0 else 1)
+  }
+})
+
+
+test_that("linear posterior plots reject overflow and complete underflow", {
+  g <- gips(diag(3), 10)
+  histories <- list(overflow = c(0, 710), underflow = c(-1000, -999))
+
+  for (problem in names(histories)) {
+    log_post <- histories[[problem]]
+    attr(g, "optimization_info") <- list(log_posteriori_values = log_post)
+
+    for (type in c("all", "best", "both")) {
+      err <- tryCatch(
+        plot(g, type = type, logarithmic_y = FALSE),
+        error = identity
+      )
+      expect_s3_class(err, "rlang_error")
+      expect_match(conditionMessage(err), problem, fixed = TRUE)
+      expect_match(conditionMessage(err), "logarithmic_y = TRUE", fixed = TRUE)
+
+      expect_silent(p <- plot(g, type = type, logarithmic_y = TRUE))
+      # Both histories are increasing, so their running maxima are unchanged.
+      expected <- if (type == "both") rep(log_post, 2) else log_post
+      expect_equal(p$data$value, expected)
+    }
+  }
+})
+
+test_that("linear posterior plots allow partial underflow without rescaling", {
+  g <- gips(diag(3), 10)
+  attr(g, "optimization_info") <- list(
+    log_posteriori_values = c(-1000, 0, -1, 1)
+  )
+  all_values <- c(0, 1, exp(-1), exp(1))
+  best_values <- c(0, 1, exp(1)) # Repeated values on the plateau are omitted.
+
+  for (type in c("all", "best", "both")) {
+    expect_silent(p <- plot(g, type = type, logarithmic_y = FALSE))
+    expected <- switch(type,
+      all = all_values, best = best_values, both = c(all_values, best_values)
+    )
+    expect_equal(p$data$value, expected)
+  }
+})
+
+
+# ── Heatmap axis labels ─────────────────────────────────────────────────────
+
+test_that("heatmaps use numeric labels when neither axis is named", {
+  g <- gips(diag(c(2, 1)), 13)
+
+  expect_silent(p <- plot(g, type = "heatmap"))
+  expect_identical(p$scales$get_scales("x")$labels, c("1", "2"))
+  expect_identical(p$scales$get_scales("y")$labels, c("1", "2"))
+})
+
+test_that("heatmaps use the available names for both axes when one is unnamed", {
+  variable_names <- c("height", "weight")
+
+  for (named_axis in c("rows", "columns")) {
+    S <- diag(c(2, 1))
+    if (named_axis == "rows") {
+      rownames(S) <- variable_names
+    } else {
+      colnames(S) <- variable_names
+    }
+    g <- gips(S, 13)
+
+    expect_silent(p <- plot(g, type = "heatmap"))
+    expect_identical(p$scales$get_scales("x")$labels, variable_names)
+    expect_identical(p$scales$get_scales("y")$labels, variable_names)
+    expect_identical(attr(g, "S"), S)
+  }
+})
+
+test_that("heatmaps preserve matching row and column names without a warning", {
+  S <- diag(c(2, 1))
+  variable_names <- c("height", "weight")
+  dimnames(S) <- list(variable_names, variable_names)
+  g <- gips(S, 13)
+
+  expect_silent(p <- plot(g, type = "heatmap"))
+  expect_identical(p$scales$get_scales("x")$labels, variable_names)
+  expect_identical(p$scales$get_scales("y")$labels, variable_names)
+})
+
+test_that("heatmaps keep conflicting names on the correct axes without repeating the warning", {
+  S <- diag(c(2, 1))
+  # The same names in a different order still describe conflicting axes.
+  rownames(S) <- c("height", "weight")
+  colnames(S) <- c("weight", "height")
+  expect_warning(
+    g <- gips(S, 13),
+    "Row and column names differ", fixed = TRUE,
+    class = "gips_mismatched_dimnames"
+  )
+  expect_silent(p <- plot(g, type = "heatmap"))
+  expect_identical(p$scales$get_scales("x")$labels, colnames(S))
+  expect_identical(p$scales$get_scales("y")$labels, rownames(S))
+  expect_equal(p$data$covariance, S[cbind(p$data$row_id, p$data$col_id)])
+  expect_identical(attr(g, "S"), S)
+})
+
 
 # ── deduplicate_step_runs() ───────────────────────────────────────────────────
 
@@ -54,7 +239,10 @@ test_that("deduplicate_step_runs() returns a single-row data frame unchanged", {
 })
 
 test_that("deduplicate_step_runs() preserves all columns", {
-  df <- data.frame(step = 1:3, value = c(5, 5, 6), series = "my_series", extra = letters[1:3])
+  df <- data.frame(
+    step = 1:3, value = c(5, 5, 6), series = "my_series", extra = letters[1:3],
+    stringsAsFactors = FALSE
+  )
 
   result <- gips:::deduplicate_step_runs(df)
 
@@ -110,7 +298,6 @@ local({
   )
 
   test_that("convergence plot data x-range spans full iteration count (type = 'all')", {
-    skip_if_not_installed("ggplot2")
     gg <- plot(g_mh, type = "all")
     expect_true(inherits(gg, "ggplot"))
     expect_equal(max(gg$data$step), num_of_steps)
@@ -118,19 +305,16 @@ local({
   })
 
   test_that("convergence plot data x-range spans full iteration count (type = 'best')", {
-    skip_if_not_installed("ggplot2")
     gg <- plot(g_mh, type = "best")
     expect_equal(max(gg$data$step), num_of_steps)
   })
 
   test_that("convergence plot data x-range spans full iteration count (type = 'both')", {
-    skip_if_not_installed("ggplot2")
     gg <- plot(g_mh, type = "both")
     expect_equal(max(gg$data$step), num_of_steps)
   })
 
   test_that("convergence plot data has fewer rows than num_of_steps (deduplication works)", {
-    skip_if_not_installed("ggplot2")
     # With MH and 50 steps at p=5, there will be many repeated log-posterior
     # values (rejected proposals). After deduplication the data frame must be
     # smaller (if all 50 values happened to be distinct this would fail, but
@@ -144,7 +328,6 @@ local({
 # ── Continuing MH runs and plotting n0 trajectory ────────────────────────────
 
 test_that("MH -> continue -> continue -> plot(type = 'n0') works end-to-end", {
-  skip_if_not_installed("ggplot2")
   # Start with MH optimization
   g_base <- gips(diag(1.1, 5), 10)
   g_mh <- suppressMessages(find_MAP(g_base, optimizer = "MH", max_iter = 10,

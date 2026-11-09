@@ -63,7 +63,7 @@ withr::with_seed(2022,
   code = Z <- matrix(runif(n * p, min = -10, max = 10), ncol = p)
 )
 Z[, 1] <- 2 * Z[, 1]
-S <- t(Z) %*% Z / n
+S <- crossprod(Z) / n
 
 ## ----def3_1-------------------------------------------------------------------
 round(S, 2)
@@ -122,7 +122,7 @@ number_of_observations <- nrow(Z) # 4
 p <- ncol(Z) # 6
 
 # Calculate the covariance matrix from the data (assume the mean is 0):
-S <- (t(Z) %*% Z) / number_of_observations
+S <- crossprod(Z) / number_of_observations
 
 # Make the gips object out of data:
 g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
@@ -165,7 +165,7 @@ dim(Z)
 number_of_observations <- nrow(Z) # 7
 p <- ncol(Z) # 6
 
-S <- (t(Z) %*% Z) / number_of_observations
+S <- crossprod(Z) / number_of_observations
 
 g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
 g_map <- find_MAP(g, optimizer = "brute_force")

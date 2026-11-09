@@ -45,6 +45,99 @@ test_that("log_posteriori_of_gips returns proper values", {
   )
 })
 
+test_that("log_posteriori_of_gips matches the p=5 closed-form integral ratio", {
+  # Chojecki et al., "A new class of colored Gaussian graphical models with
+  # explicit normalizing constants", arXiv:2601.16945.
+  # EJS_2026.pdf, p. 65, equations (35)-(36):
+  # I(delta + n, D + U) / I(delta, D) = 5^(-5/2).
+  # This checks the full normalizing-constant ratio, not just its Gamma part.
+  Z <- rbind(
+    c(1, 1, 1, 1, 1),
+    c(1, -1, 1, -1, 0)
+  )
+  n <- nrow(Z)
+  g <- gips(
+    S = crossprod(Z) / n,
+    number_of_observations = n,
+    delta = 3,
+    D_matrix = diag(5),
+    was_mean_estimated = FALSE,
+    perm = "(1,2,3,4)(5)"
+  )
+
+  expect_equal(log_posteriori_of_gips(g), -5 / 2 * log(5), tolerance = 1e-12)
+})
+
+test_that("posterior ratios with a non-scalar prior are invariant to common scaling", {
+  S <- diag(c(1, 2.4))
+  priors <- list(
+    unequal_diagonal = diag(c(1, 2)),
+    off_diagonal = matrix(c(2, 0.5, 0.5, 1), nrow = 2)
+  )
+  log_ratio <- function(S, D) {
+    log_weights <- vapply(c("()", "(1,2)"), function(perm) {
+      g <- gips(S, 20, D_matrix = D, perm = perm, was_mean_estimated = TRUE)
+      log_posteriori_of_gips(g)
+    }, numeric(1))
+    unname(log_weights[1] - log_weights[2])
+  }
+
+  for (D in priors) {
+    reference <- log_ratio(S, D)
+    for (scale in c(1e-8, 1e-6, 1e6, 1e8)) {
+      expect_equal(
+        log_ratio(S * scale, D * scale), reference,
+        tolerance = 1e-10, info = paste("scale =", scale)
+      )
+    }
+  }
+})
+
+test_that("the scalar-prior shortcut agrees with the general calculation", {
+  # Force the general path in a local copy without changing the namespace.
+  general_phi_part <- calculate_phi_part
+  environment(general_phi_part) <- list2env(
+    list(is_scalar_identity_matrix = function(...) FALSE),
+    parent = environment(calculate_phi_part)
+  )
+  perm <- gips_perm("(1,2,3,4)(5)", 5)
+  constants <- get_structure_constants(perm)
+  Z <- rbind(c(1, 1, 1, 1, 1), c(1, -1, 1, -1, 0))
+
+  for (scale in c(1e-8, 1, 1e8)) {
+    U <- crossprod(Z) * scale
+    D <- diag(5) * scale
+    expect_equal(
+      calculate_phi_part(perm, 2, U, 3, D, constants),
+      general_phi_part(perm, 2, U, 3, D, constants),
+      tolerance = 1e-12, info = paste("scale =", scale)
+    )
+  }
+})
+
+test_that("nearly scalar priors retain their full posterior contribution", {
+  general_phi_part <- calculate_phi_part
+  environment(general_phi_part) <- list2env(
+    list(is_scalar_identity_matrix = function(...) FALSE),
+    parent = environment(calculate_phi_part)
+  )
+  perm <- gips_perm("(1,2,3,4)(5)", 5)
+  constants <- get_structure_constants(perm)
+  n <- 1000
+
+  for (scale in c(1e-6, 1, 1e6)) {
+    U <- n * diag(5) * scale
+    D <- diag(c(1, 1, 1, 1, 1 + 8e-7)) * scale
+    actual <- calculate_phi_part(perm, n, U, 3, D, constants)
+    expected <- general_phi_part(perm, n, U, 3, D, constants)
+
+    # Check absolute error: the large log values would hide this difference
+    # under a relative tolerance.
+    expect_equal(actual - expected, 0, tolerance = 1e-10,
+                 info = paste("scale =", scale))
+  }
+})
+
 test_that("log_posteriori_of_perm returns proper values", {
   S1 <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE) / 100
 
@@ -77,7 +170,7 @@ test_that("log_posteriori_of_gips has the desired property", {
   }
 
   Z <- MASS::mvrnorm(n, mu = mu, Sigma = sigma_matrix)
-  S <- t(Z) %*% Z / n
+  S <- crossprod(Z) / n
 
   actual_permutation <- permutations::as.cycle(permutations::as.word(c(2:p, 1)))
 
@@ -132,6 +225,48 @@ test_that("calculate_block_determinants returns proper values", {
     )),
     c(3, 2, 1)
   )
+})
+
+test_that("block log-determinants reject non-positive-definite later blocks", {
+  for (diagonal in list(c(1, 0), c(1, -1e-8), c(-1e-8, -1e-8))) {
+    # The last case has a positive determinant despite not being positive definite.
+    expect_error(
+      calculate_log_determinants_of_block_matrices(
+        diag(c(2, diagonal)), c(1, 3)
+      ),
+      "Block 2 of the supplied matrix",
+      class = "not_positive_definite_block"
+    )
+  }
+})
+
+test_that("block log-determinants accept small positive eigenvalues", {
+  expect_equal(
+    calculate_log_determinants_of_block_matrices(
+      diag(c(2, 1, 1e-12)), c(1, 3)
+    ),
+    c(log(2), log(1e-12))
+  )
+})
+
+test_that("posterior calculation rejects non-positive-definite D + U", {
+  # S passes PSD tolerance, but this small prior cannot offset its negative part.
+  g <- gips(
+    diag(c(1, -1e-8)), 10, D_matrix = 1e-10 * diag(2),
+    was_mean_estimated = FALSE
+  )
+  expect_error(
+    log_posteriori_of_gips(g),
+    "projected \\(D \\+ U\\) / 2",
+    class = "not_positive_definite_block"
+  )
+})
+
+test_that("posterior calculation allows singular S with a positive definite prior", {
+  g <- gips(
+    diag(c(1, 0)), 10, D_matrix = diag(2), was_mean_estimated = FALSE
+  )
+  expect_true(is.finite(log_posteriori_of_gips(g)))
 })
 
 test_that("compare_posteriories_of_perms properly calculates", {

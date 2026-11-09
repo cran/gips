@@ -28,15 +28,26 @@ If \code{Inf} or \code{NaN} is reached, it produces a warning.
 \section{Multi-sample}{
 
 When \code{g} is a multi-sample \code{gips} object (created with a list of matrices,
-e.g. \code{gips(list(S1, S2), c(n1, n2))}), the log-posterior is the sum of
-the independent single-sample log-posteriors across all G groups, using
-the per-group \code{number_of_observations}, \code{delta}, and \code{D_matrix} values:
+e.g. \code{gips(list(S1, S2), c(n1, n2))}), each sample has its own covariance
+matrix, while all samples share the same cyclic symmetry group.
+Under the package's assumptions of conditional independence of the samples
+and their precision-matrix priors given that group, and a uniform prior
+over cyclic groups,
 
-\deqn{\log P(\Gamma | S_1, \ldots, S_G) = \sum_{\ell=1}^{G} \log P(\Gamma | S_\ell)}
+\deqn{P(\Gamma \mid S_1, \ldots, S_G) \propto
+  \exp\left\{\sum_{j=1}^{G} \ell_j(\Gamma)\right\}.}{
+  P(Gamma | S_1, ..., S_G) is proportional to
+  exp(ell_1(Gamma) + ... + ell_G(Gamma)).
+}
+
+Here, \eqn{\ell_j(\Gamma)}{ell_j(Gamma)} is the single-sample unnormalized log-posterior
+weight, computed using that sample's \code{number_of_observations}, \code{delta},
+and \code{D_matrix}. The function returns the sum of these log weights,
+without normalizing over symmetry groups.
 }
 
 \examples{
-# In the space with p = 2, there is only 2 permutations:
+# In the space with p = 2, there are only 2 permutations:
 perm1 <- permutations::as.cycle("(1)(2)")
 perm2 <- permutations::as.cycle("(1,2)")
 S1 <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE)

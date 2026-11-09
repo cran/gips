@@ -302,6 +302,19 @@ test_that("logLik() returns NULL when min(n_g) < n0", {
 })
 
 
+test_that("logLik() identifies a non-positive-definite projection in a later group", {
+  g <- gips(
+    list(diag(2), diag(c(1, -1e-8))), c(10L, 12L),
+    was_mean_estimated = FALSE
+  )
+  expect_warning(
+    expect_equal(logLik(g), -Inf),
+    "Group 2",
+    class = "singular_matrix"
+  )
+})
+
+
 test_that("AIC() and BIC() work on multi-sample gips", {
   S1 <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE)
   S2 <- matrix(c(2, 0.3, 0.3, 1.5), nrow = 2, byrow = TRUE)
@@ -334,6 +347,25 @@ test_that("summary() does not error on multi-sample gips and returns correct fie
   expect_equal(s[["G"]], 2L)
   expect_equal(s[["number_of_observations"]], c(10L, 12L))
   expect_no_error(capture.output(print(s)))
+})
+
+
+test_that("summary() requires positive definite fitted projections in every group", {
+  S <- list(diag(c(1, 3)), diag(c(1, 0)))
+  g_identity <- gips(S, c(10L, 12L), was_mean_estimated = FALSE)
+  expect_silent(identity_result <- summary(g_identity))
+  expect_false(identity_result$MLE_available)
+  expect_equal(identity_result$AIC, Inf)
+  expect_equal(identity_result$BIC, Inf)
+  expect_output(print(identity_result), "at least one projected covariance matrix is not numerically positive definite")
+
+  swap_result <- summary(gips(
+    S, c(10L, 12L), perm = "(1,2)", was_mean_estimated = FALSE
+  ))
+  expect_true(swap_result$MLE_available)
+  expect_true(is.finite(swap_result$AIC))
+  expect_true(is.finite(swap_result$BIC))
+  expect_output(print(swap_result), "The MLE estimator based on the found permutation does exist")
 })
 
 
@@ -495,6 +527,39 @@ test_that("compare_log_posteriories_of_perms() validates standalone multi-sample
   expect_match(conditionMessage(perm2_error), "`perm2` must have the `size` attribute", fixed = TRUE)
 })
 
+
+test_that("standalone multi-sample comparisons validate default D_matrix", {
+  S <- list(diag(2), matrix(0, 2, 2))
+
+  for (compare in list(compare_log_posteriories_of_perms, compare_posteriories_of_perms)) {
+    expect_error(
+      compare(
+        "(1,2)", "()", S = S, number_of_observations = c(10L, 12L),
+        was_mean_estimated = FALSE, print_output = FALSE
+      ),
+      "`D_matrix` must either be `NULL` or a positive-definite matrix.",
+      fixed = TRUE, class = "rlang_error"
+    )
+  }
+})
+
+test_that("standalone multi-sample comparisons allow zero S with positive-definite D_matrix", {
+  S <- list(diag(2), matrix(0, 2, 2))
+  n <- c(10L, 12L)
+  D <- list(diag(2), diag(2))
+  g1 <- gips(S, n, perm = "(1,2)", D_matrix = D, was_mean_estimated = FALSE)
+  g2 <- gips(S, n, perm = "()", D_matrix = D, was_mean_estimated = FALSE)
+
+  for (compare in list(compare_log_posteriories_of_perms, compare_posteriories_of_perms)) {
+    result <- compare(
+      "(1,2)", "()", S = S, number_of_observations = n,
+      D_matrix = D, was_mean_estimated = FALSE, print_output = FALSE
+    )
+
+    expect_true(is.finite(result))
+    expect_equal(result, compare(g1, g2, print_output = FALSE), tolerance = 1e-10)
+  }
+})
 
 test_that("single-sample gips() is unaffected by multi-sample changes", {
   S <- matrix(c(1, 0.5, 0.5, 2), nrow = 2, byrow = TRUE)

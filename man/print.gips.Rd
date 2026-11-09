@@ -16,9 +16,9 @@
 \arguments{
 \item{x}{An object of a \code{gips} class.}
 
-\item{digits}{The number of decimal places for
-the posterior probability. It can be negative.
-By default, \code{Inf}. It is passed to \code{\link[base:Round]{base::round()}}.}
+\item{digits}{The number of decimal places used to round displayed posterior
+ratios and, when \code{log_value = TRUE}, the unnormalized log-posterior.
+It can be negative. Defaults to \code{3}. Passed to \code{\link[base:round]{base::round()}}.}
 
 \item{compare_to_original}{A logical. Whether to print how many
 times more likely the current permutation is compared to:
@@ -43,9 +43,9 @@ Printing function for a \code{gips} class.
 }
 \section{Multi-sample}{
 
-For multi-sample \code{gips} objects the number of observations is shown as a
-vector \code{n = c(n1, n2, ...)} and the comparison to the starting permutation
-uses the combined log-posterior (sum across groups).
+For multi-sample \code{gips} objects, posterior comparisons use the combined
+unnormalized log-posterior (sum of per-sample log weights).
+Use \code{summary(x)} to display the sample sizes; see \code{\link[=summary.gips]{summary.gips()}}.
 }
 
 \examples{
@@ -58,7 +58,7 @@ print(g, digits = 4, oneline = TRUE)
 \item \code{\link[=find_MAP]{find_MAP()}} - The function that makes
 an optimized \code{gips} object out of the unoptimized one.
 \item \code{\link[=compare_posteriories_of_perms]{compare_posteriories_of_perms()}} - The function that prints
-the compared posteriories between any two permutations,
+the compared posteriors between any two permutations,
 not only compared to the starting one or id.
 }
 }

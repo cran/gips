@@ -1,3 +1,45 @@
+# gips 1.3.1
+
+### Update to functions
+
+* `find_MAP(return_probabilities = TRUE)` now normalizes posterior weights over
+  distinct visited cyclic groups for MH instead of using visit frequencies.
+  This is faster and more acurate. See (#120).
+* Improved performance of BF probability calculations and MH search.
+* Input validation now requires exactly symmetric `S` and `D_matrix` and rejects
+  `p <= 1`, incomplete permutations, invalid permutation sizes, and `NULL` entries
+  in multi-sample `D_matrix`. Projection and decomposition helpers now also
+  validate permutations.
+* `find_MAP()` now rejects further optimization when the last optimizer was BF,
+  including after `forget_perms()`.
+* `plot(type = "n0")` now uses a linear y-axis by default and supports all
+  optimization histories. Logarithmic plots now correctly display values 1 and 2.
+
+### Bugfixes:
+
+* Corrected the declared minimum R version to 4.0.0 to reflect existing code
+  requirements and fixed compilation with C++11.
+* Fixed duplicated boundary states when continuing MH, including after HC stages,
+  and corrected MH acceptance rates to count only eligible proposals. `print()`
+  and `summary()` now report actual posterior evaluation counts.
+* The likelihood-ratio test in `summary()` now requires at least `p` effective
+  observations and preserves precision for very small p-values.
+* Improved positive-definiteness checks and log-determinant calculations in
+  `logLik()`, likelihood-ratio tests, and posterior calculations. Summaries now
+  distinguish insufficient observations from projected covariance matrices that
+  are not numerically positive definite.
+* Fixed posterior comparisons for small non-scalar `D_matrix` values, calculations
+  for nearly scalar priors, and rejection of positive-definite priors with small
+  eigenvalues.
+* Fixed `get_structure_constants()` for permutations with very large order
+  (above 3e17) (#122).
+* Fixed swapped row and column labels in single-sample heatmaps; names on only
+  one axis now label both axes. `gips()` warns when row and column names differ
+  within a covariance matrix, including in multi-sample input.
+* Posterior trajectory plots now report a clear error recommending the
+  logarithmic scale when exponentiation overflows or all values underflow to zero.
+
+
 # gips 1.3.0
 
 ### Multi-sample support

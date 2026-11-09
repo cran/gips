@@ -32,13 +32,17 @@ validate_gips(g)
 single-sample use of \code{gips()}. For the optional multi-sample interface,
 \code{S} can also be a list of covariance matrices; see the
 \strong{Multi-sample} section below.
-When \code{Z} is the observed data:
+Row and column names are optional. If both are supplied, they should
+identify the same variables in the same order.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{When `Z` is the observed data:
+}\if{html}{\out{</div>}}
 \itemize{
 \item if one does not know the theoretical mean and has to
 estimate it with the observed mean, use \code{S = cov(Z)},
 and leave parameter \code{was_mean_estimated = TRUE} as default;
 \item if one knows the theoretical mean is 0, use
-\code{S = (t(Z) \%*\% Z) / number_of_observations}, and set
+\code{S = crossprod(Z) / number_of_observations}, and set
 parameter \code{was_mean_estimated = FALSE}.
 }}
 
@@ -52,19 +56,20 @@ See the \strong{Hyperparameters} section below.
 For multi-sample input, it can also be a numeric vector with one value
 per matrix in \code{S}; see the \strong{Multi-sample} section below.}
 
-\item{D_matrix}{Symmetric, positive-definite matrix of the same size as \code{S}.
-Hyper-parameter of a Bayesian model.
-When \code{NULL}, the (hopefully) reasonable one is derived from the data.
-For more details, see the \strong{Hyperparameters} section below.
-For multi-sample input, use a list of matrices; see the
-\strong{Multi-sample} section below.}
+\item{D_matrix}{Hyper-parameter of a Bayesian model. Either \code{NULL} (default),
+a symmetric, positive-definite matrix of the same size as \code{S} for
+single-sample input, or a list of such matrices (one per matrix in \code{S})
+for multi-sample input. List elements cannot be \code{NULL}.
+When \code{NULL}, defaults are derived from the data separately for each sample.
+For more details, see the \strong{Hyperparameters} and \strong{Multi-sample}
+sections below.}
 
 \item{was_mean_estimated}{A boolean.
 \itemize{
 \item Set \code{TRUE} (default) when your \code{S} parameter is a result of
-a \code{\link[stats:cor]{stats::cov()}} function.
+a \code{\link[stats:cov]{stats::cov()}} function.
 \item Set \code{FALSE} when your \code{S} parameter is a result of
-a \code{(t(Z) \%*\% Z) / number_of_observations} calculation.
+a \code{crossprod(Z) / number_of_observations} calculation.
 }}
 
 \item{perm}{An optional permutation to be the base for the \code{gips} object.
@@ -121,29 +126,35 @@ the \code{\link[=find_MAP]{find_MAP()}} function to do it. See the examples belo
 
 \section{Hyperparameters}{
 
-We encourage you to try \code{D_matrix = d * I}, where \code{I} is a \code{p} \eqn{\times}
+We encourage you to try \code{D_matrix = d * I}, where \code{I} is a \code{p} \eqn{\times}{by}
 \code{p} identity matrix and \code{d > 0} for some different \code{d}.
-When \code{d} is small compared to the data (e.g., \code{d=0.1 * mean(diag(S))}),
-bigger structures will be found.
-When \code{d} is big compared to the data (e.g., \code{d=100 * mean(diag(S))}),
-the posterior distribution does not depend on the data.
+Smaller \code{d} favor models with more equality constraints and fewer
+free covariance parameters. This tendency depends on the data and \code{delta}.
+For fixed dimension, sample size and \code{delta}, as \code{d} tends to infinity,
+the posterior distribution over symmetry groups converges to a
+distribution independent of \code{S}.
 
-Taking \code{D_matrix = d * I} is equivalent to setting \code{S <- S / d}.
+Using \code{S} with \code{D_matrix = d * I} gives the same results
+as using \code{S / d} with \code{D_matrix = I},
+with the other parameters unchanged.
 
 The default for \code{D_matrix} is \code{D_matrix = d * I}, where
-\code{d = mean(diag(S))}, which is equivalent to modifying \code{S}
-so that the mean value on the diagonal is 1.
+\code{d = mean(diag(S))}. For group selection, this is equivalent to using
+\code{S / d} with \code{D_matrix = I}, so that the mean diagonal entry of \code{S / d} is 1.
 
-In the Bayesian model, the prior distribution for
-the covariance matrix is a generalized case of
-\href{https://en.wikipedia.org/wiki/Wishart_distribution}{Wishart distribution}.
+The Bayesian model uses a
+\href{https://en.wikipedia.org/wiki/Wishart_distribution}{Wishart-type prior}
+on the precision matrix (the inverse covariance matrix).
+
+The hyperparameters affect symmetry selection. For a fixed permutation,
+\code{\link[=project_matrix]{project_matrix()}} does not use \code{delta} or \code{D_matrix}.
 
 For a brief introduction, see the \strong{Bayesian model selection}
 section in \code{vignette("Theory", package = "gips")} or in its
-\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}).
+\href{https://przechoj.github.io/gips/articles/Theory.html}{pkgdown page}.
 
 For analysis of the Hyperparameters influence, see \strong{Section 3.2.}
-of "Learning permutation symmetries with gips in R"
+of "Learning Permutation Symmetry of a Gaussian Vector with gips in R"
 by \code{gips} developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek,
 Journal of Statistical Software; \doi{10.18637/jss.v112.i07}.
 }
@@ -178,7 +189,6 @@ not a per-group setting.
 }
 
 \examples{
-\dontshow{if (rlang::is_installed("ggplot2") && rlang::is_installed("MASS")) withAutoprint(\{ # examplesIf}
 require("MASS") # for mvrnorm()
 
 perm_size <- 5
@@ -204,11 +214,10 @@ g_map
 
 summary(g_map)
 plot(g_map, type = "both", logarithmic_x = TRUE)
-\dontshow{\}) # examplesIf}
 }
 \seealso{
 \itemize{
-\item \code{\link[stats:cor]{stats::cov()}} - The \code{S} parameter, as an empirical covariance matrix,
+\item \code{\link[stats:cov]{stats::cov()}} - The \code{S} parameter, as an empirical covariance matrix,
 is most of the time a result of the \code{cov()} function.
 For more information, see
 \href{https://en.wikipedia.org/wiki/Estimation_of_covariance_matrices}{Wikipedia - Estimation of covariance matrices}.

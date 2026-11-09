@@ -1,39 +1,92 @@
-#' Estimate posterior probabilities from Metropolis-Hastings run
+#' Calculate posterior probabilities conditional on the visited groups
 #'
-#' We use the "second approach" from the paper.
+#' Each distinct cyclic group contributes one posterior weight, regardless of
+#' repeated visits or the number of generators encountered for that group.
 #'
-#' @param perms A list of `gips_perm` objects. Visited groups during the Metropolis-Hastings run.
+#' @param perms A nonempty list of `gips_perm` objects of the same size.
+#' @param log_weights Finite log posterior weights aligned with `perms`.
 #' @param show_progress_bar A boolean. Indicate whether or not to show the progress bar.
 #'
-#' @returns A named numeric vector. Names: character representations of permutations.
-#' Elements: estimated posterior probabilities of permutations.
+#' @returns A decreasing named numeric vector of probabilities normalized over
+#' the supplied groups. Names are character representations of group generators.
 #' @noRd
-estimate_probabilities <- function(perms, show_progress_bar = FALSE) {
-  if (show_progress_bar) {
-    progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 1)
+calculate_visited_probabilities <- function(perms, log_weights, show_progress_bar = FALSE) {
+  if (!is.list(perms) || length(perms) == 0L) {
+    rlang::abort("`perms` must be a nonempty list of `gips_perm` objects.")
   }
-  group_representatives <- sapply(1:length(perms), function(i) {
+  if (!is.numeric(log_weights) || is.complex(log_weights) ||
+      !is.null(dim(log_weights)) || length(log_weights) != length(perms) ||
+      any(!is.finite(log_weights))) {
+    rlang::abort("`log_weights` must be a finite numeric vector with one value per permutation.")
+  }
+  if (!is.logical(show_progress_bar) || length(show_progress_bar) != 1L ||
+      is.na(show_progress_bar)) {
+    rlang::abort("`show_progress_bar` must be TRUE or FALSE.")
+  }
+
+  # Check basic metadata and common size before validating cycles and building keys.
+  sizes <- vapply(perms, function(perm) {
+    if (!inherits(perm, "gips_perm") || !is.list(perm)) {
+      rlang::abort("Each element of `perms` must be a `gips_perm` list.")
+    }
+    size <- attr(perm, "size")
+    if (length(size) != 1L || !is.numeric(size) || is.complex(size) ||
+        !is.finite(size) || size < 1 || size != floor(size)) {
+      rlang::abort("Each permutation in `perms` must have a finite positive integer `size`.")
+    }
+    size
+  }, numeric(1))
+  if (any(sizes != sizes[1L])) {
+    rlang::abort("All permutations in `perms` must have the same size.")
+  }
+
+  # Validate cycles and remove identical permutations before the expensive group lookup.
+  permutation_keys <- vapply(perms, get_permutation_key, character(1))
+  first_permutations <- !duplicated(permutation_keys)
+  perms <- perms[first_permutations]
+  log_weights <- log_weights[first_permutations]
+
+  if (show_progress_bar) {
+    progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 0)
+    on.exit(close(progressBar), add = TRUE)
+  }
+  group_representatives <- lapply(seq_along(perms), function(i) {
     if (show_progress_bar) {
       utils::setTxtProgressBar(progressBar, i)
     }
-    as.character(get_group_representative(perms[[i]]))
+    get_group_representative(perms[[i]])
   })
-  repr_counts <- table(group_representatives)
-  if (show_progress_bar) {
-    close(progressBar)
-  }
+  group_keys <- vapply(group_representatives, get_permutation_key, character(1))
+  first_groups <- !duplicated(group_keys)
 
-  repr_weights <- sapply(names(repr_counts), function(p_str) {
-    perm <- permutations::char2cycle(p_str)
-    p_order <- permutations::permorder(perm)
-    1 / numbers::eulersPhi(p_order)
-  })
-  unnormalized_probabilities <- repr_counts * repr_weights / length(perms)
-  probabilities <- unnormalized_probabilities / sum(unnormalized_probabilities)
-  probabilities <- as.numeric(probabilities)
-  names(probabilities) <- names(unnormalized_probabilities)
+  probabilities <- change_log_probabilities_unnorm_to_probabilities(
+    as.numeric(log_weights[first_groups])
+  )
+  names(probabilities) <- vapply(
+    group_representatives[first_groups], as.character, character(1)
+  )
 
   sort(probabilities, decreasing = TRUE)
+}
+
+
+#' Get an exact permutation key independent of printing options
+#'
+#' @param perm A `gips_perm` object.
+#' @returns Its full image vector, serialized with comma separators.
+#' @noRd
+get_permutation_key <- function(perm) {
+  validate_gips_perm(perm)
+  size <- attr(perm, "size")
+  if (size < 1) {
+    rlang::abort("`perm` must contain a complete permutation of 1, ..., size.")
+  }
+
+  images <- seq_len(size)
+  for (cycle in unclass(perm)) {
+    images[cycle] <- c(cycle[-1L], cycle[1L])
+  }
+  paste(as.integer(images), collapse = ",")
 }
 
 
@@ -92,18 +145,28 @@ get_coprimes <- function(n) {
 #'
 #' We use the "second approach" from the paper.
 #'
-#' @param perms An output of `permutations::allperms()`.
-#' @param log_posteriories A vector of all values of log posteriories of all `perms`.
-#' @param show_progress_bar A boolean. Indicate whether or not to show two progress bars.
+#' @param perms A `permutations::cycle` vector containing all permutations or
+#'     one generator per cyclic group.
+#' @param log_posteriories A vector of log-posterior values aligned with `perms`.
+#' @param show_progress_bar A boolean. Show a progress bar while preparing
+#'     probability names and, when `perms_are_representatives = FALSE`, another
+#'     for deduplication.
+#' @param perms_are_representatives A boolean. If `TRUE`, `perms` is assumed
+#'     to contain exactly one canonical representative per cyclic group.
+#'     Canonicalization and deduplication are skipped;
+#'     the supplied representatives are used directly for probability names.
+#'     With `FALSE` (the default), calculate canonical representatives and retain
+#'     one log weight per distinct cyclic group. BF uses this shortcut for its
+#'     prepared canonical generators (also for `p = 2`), after checking
+#'     `length(perms) == OEIS_A051625[p]`, where `p` is the permutation size.
 #'
-#' @returns A named numeric vector. Names: character representations of permutations.
-#' Elements: estimated posterior probabilities of permutations.
+#' @returns A decreasing named numeric vector of posterior probabilities,
+#'     normalized over the cyclic groups. Names are character representations
+#'     of canonical group generators. Ties have no guaranteed relative order.
 #' @noRd
-calculate_probabilities <- function(perms, log_posteriories, show_progress_bar = FALSE) {
-  if (show_progress_bar) {
-    progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 1)
-  }
-
+calculate_probabilities <- function(
+    perms, log_posteriories, show_progress_bar = FALSE,
+    perms_are_representatives = FALSE) {
   for (i in 1:19) {
     perms_size <- i
     if (OEIS_A051625[i] == length(perms) || OEIS_A000142[i] == length(perms)) {
@@ -116,6 +179,33 @@ calculate_probabilities <- function(perms, log_posteriories, show_progress_bar =
       "i" = "The length of the permutation vector has to be an element of OEIS sequence A051625 or A000142",
       "x" = paste0("You have the length of permutation vector = ", length(perms))
     )
+  }
+
+  if (perms_are_representatives) {
+    if (show_progress_bar) {
+      progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 0)
+    }
+
+    names(log_posteriories) <- vapply(seq_along(perms), function(i) {
+      perm_name <- as.character(gips_perm_no_checks(perms[i], perms_size))
+      if (show_progress_bar) {
+        utils::setTxtProgressBar(progressBar, i)
+      }
+      perm_name
+    }, character(1))
+
+    if (show_progress_bar) {
+      close(progressBar)
+    }
+
+    return(sort(
+      change_log_probabilities_unnorm_to_probabilities(log_posteriories),
+      decreasing = TRUE
+    ))
+  }
+
+  if (show_progress_bar) {
+    progressBar <- utils::txtProgressBar(min = 0, max = length(perms), initial = 1)
   }
 
   group_representatives <- character(0)

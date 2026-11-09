@@ -31,7 +31,7 @@ test_that("is.wholenumber works", {
 test_that("is.positive.semi.definite.matrix works", {
   p <- 7
   random_matrix <- matrix(rnorm(p * p), nrow = p)
-  random_matrix <- t(random_matrix) %*% random_matrix
+  random_matrix <- crossprod(random_matrix)
 
   random_matrix <- random_matrix - diag(p) * (eigen(random_matrix, symmetric = TRUE, only.values = TRUE)[["values"]][p] - 10)
   # the smallest eigen value of `random_matrix` is very close to 10
@@ -41,7 +41,28 @@ test_that("is.positive.semi.definite.matrix works", {
   expect_false(is.positive.semi.definite.matrix(random_matrix - diag(p) * (10.01))) # the smallest eigen value is very close to -0.01
 })
 
-test_that("is_scalar_identity_matrix works", {
+test_that("PSD validation uses entry scale rather than eigenvalue scale", {
+  # The largest eigenvalues are about 2, but the largest entries are about 1.
+  indefinite <- matrix(c(1, 1 + 2e-8, 1 + 2e-8, 1), 2)
+
+  for (scale in c(1e-12, 1, 1e12)) {
+    expect_false(is.positive.semi.definite.matrix(indefinite * scale))
+    expect_true(is.positive.semi.definite.matrix(diag(c(1, -1e-10)) * scale))
+  }
+})
+
+test_that("positive definiteness does not impose a relative eigenvalue cutoff", {
+  for (scale in c(1e-12, 1, 1e12)) {
+    expect_true(is.positive.definite.matrix(diag(c(1, 1e-12)) * scale))
+    expect_false(is.positive.definite.matrix(diag(c(1, 0)) * scale))
+    expect_false(is.positive.definite.matrix(diag(c(1, -1e-12)) * scale))
+    expect_true(is.positive.definite.matrix(matrix(c(2, 1, 1, 2), 2) * scale))
+    expect_false(is.positive.definite.matrix(matrix(1, 2, 2) * scale))
+  }
+  expect_false(is.positive.definite.matrix(matrix(0, 2, 2)))
+})
+
+test_that("is_scalar_identity_matrix requires exact scalar structure", {
   expect_true(is_scalar_identity_matrix(diag(5)))
   expect_true(is_scalar_identity_matrix(diag(3, 5)))
   expect_true(is_scalar_identity_matrix(matrix(7, nrow = 1, ncol = 1)))
@@ -57,18 +78,41 @@ test_that("is_scalar_identity_matrix works", {
   matrix_with_late_off_diagonal[3, 4] <- 1e-4
   expect_false(is_scalar_identity_matrix(matrix_with_late_off_diagonal))
 
-  matrix_within_tolerance <- diag(3)
-  matrix_within_tolerance[1, 2] <- 1e-7
-  matrix_within_tolerance[2, 1] <- -1e-7
-  matrix_within_tolerance[3, 3] <- 1 + 1e-7
-  expect_true(is_scalar_identity_matrix(matrix_within_tolerance))
+  nearly_scalar <- diag(3)
+  nearly_scalar[3, 3] <- 1 + .Machine$double.eps
+  expect_false(is_scalar_identity_matrix(nearly_scalar))
 
-  matrix_outside_tolerance <- diag(3)
-  matrix_outside_tolerance[3, 3] <- 1 + 1.1e-4
-  expect_false(is_scalar_identity_matrix(matrix_outside_tolerance))
+  tiny_off_diagonal <- diag(3)
+  tiny_off_diagonal[2, 3] <- tiny_off_diagonal[3, 2] <- .Machine$double.eps
+  expect_false(is_scalar_identity_matrix(tiny_off_diagonal))
 })
 
-test_that("change_log_probabilities_unnorm_to_probabilities forks as intendent", {
+test_that("scalar identity detection distinguishes nearly scalar matrices at different scales", {
+  near_scalar <- diag(c(1, 1, 1 + 1e-7))
+  near_scalar[1, 2] <- near_scalar[2, 1] <- 1e-7
+  early_off_diagonal <- diag(3)
+  early_off_diagonal[1, 2] <- early_off_diagonal[2, 1] <- 0.1
+  late_off_diagonal <- diag(3)
+  late_off_diagonal[2, 3] <- late_off_diagonal[3, 2] <- 0.1
+  matrices <- list(
+    zero = matrix(0, 3, 3),
+    scalar = diag(3, 3),
+    near_scalar = near_scalar,
+    unequal_diagonal = diag(c(1, 2, 3)),
+    early_off_diagonal = early_off_diagonal,
+    late_off_diagonal = late_off_diagonal
+  )
+  expected <- c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE)
+
+  for (scale in c(1e-12, 1e-6, 1, 1e6, 1e12)) {
+    actual <- vapply(matrices, function(x) {
+      is_scalar_identity_matrix(x * scale)
+    }, FALSE)
+    expect_identical(unname(actual), expected, info = paste("scale =", scale))
+  }
+})
+
+test_that("change_log_probabilities_unnorm_to_probabilities works as intended", {
   desired_probs <- c(0.1, 0.2, 0.3, 0.4)
   changed_probs <- log(desired_probs) + runif(1, -1000, 1000)
   est_desired_probs <- change_log_probabilities_unnorm_to_probabilities(changed_probs)
@@ -77,7 +121,6 @@ test_that("change_log_probabilities_unnorm_to_probabilities forks as intendent",
 })
 
 test_that("pretty_plot work", {
-  skip_if_not_installed("ggplot2")
   gg_plot_object <- pretty_plot_matrix(matrix_invariant_by_example_perm)
   expect_true(inherits(gg_plot_object, "ggplot"))
 

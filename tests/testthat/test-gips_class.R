@@ -17,7 +17,7 @@ sigma_matrix <- matrix(
 )
 number_of_observations <- 13
 Z <- MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix) # this place is random
-S <- (t(Z) %*% Z) / number_of_observations # the theoretical mean is 0
+S <- crossprod(Z) / number_of_observations # the theoretical mean is 0
 
 
 
@@ -714,6 +714,7 @@ test_that("print.gips() works", {
 
   g <- gips(S, number_of_observations, was_mean_estimated = FALSE)
   g_map <- find_MAP(g, 10, show_progress_bar = FALSE, optimizer = "MH")
+  posterior_calls <- attr(g_map, "optimization_info")$number_of_log_posteriori_calls
 
   expect_output(
     print(g),
@@ -721,11 +722,11 @@ test_that("print.gips() works", {
   )
   expect_output(
     print(g, log_value = TRUE),
-    "The permutation \\(\\):\n - is 1 times more likely than the \\(\\) permutation;\n - has log posteriori"
+    "The permutation \\(\\):\n - is 1 times more likely than the \\(\\) permutation;\n - has log posterior"
   )
   expect_output(
     print(g_map),
-    "\n - was found after 10 posteriori calculations;\n - is"
+    paste0("\n - was found in a search using ", posterior_calls, " posterior calculations;\n - is")
   )
 
   # oneline:
@@ -735,16 +736,28 @@ test_that("print.gips() works", {
   )
   expect_output(
     print(g, oneline = TRUE, log_value = TRUE),
-    "permutation; has log posteriori "
+    "permutation; has log posterior "
   )
   expect_output(
     print(g_map, oneline = TRUE),
-    ": was found after 10 posteriori calculations; is"
+    paste0(": was found in a search using ", posterior_calls, " posterior calculations; is")
+  )
+})
+
+test_that("print.gips() omits empty details when comparison is disabled", {
+  g <- gips(diag(5), 13)
+
+  expect_identical(
+    capture.output(print(g, compare_to_original = FALSE)),
+    "The permutation ()."
+  )
+  expect_identical(
+    capture.output(print(g, compare_to_original = FALSE, oneline = TRUE)),
+    "The permutation ()."
   )
 })
 
 test_that("plot.gips() works or abords for wrong arguments", {
-  skip_if_not_installed("ggplot2")
   custom_perm1 <- gips_perm("(1,2)(3,4,5,6)", 6)
   g1 <- gips(S, number_of_observations,
     was_mean_estimated = FALSE, perm = custom_perm1
@@ -776,20 +789,17 @@ test_that("plot.gips() works or abords for wrong arguments", {
 
   expect_error(
     plot.gips(g1_found, type = "non_existing"),
-    "Did You misspell the 'type' argument?"
+    "Did you misspell the 'type' argument?"
   )
   
-  # n0 only for M-H
+  # n0 requires an optimization history, including BF histories.
   g1 <- gips(diag(5), 10)
   expect_error(
     plot(g1, type = "n0"),
     "For non-optimized `gips` objects only the `type = 'heatmap', 'MLE' or 'block_heatmap'` can be used."
   )
   g_MAP <- find_MAP(g1, optimizer = "BF", show_progress_bar = FALSE)
-  expect_error(
-    plot(g_MAP, type = "n0"),
-    "`type = 'n0'` can only be used with `gips` objects optimized using the Metropolis-Hastings algorithm"
-  )
+  expect_silent(plot(g_MAP, type = "n0"))
   
   g_MAP_MH <- find_MAP(g1, optimizer = "MH", max_iter = 2, show_progress_bar = FALSE)
   expect_silent(plot(g_MAP_MH, type = "n0"))
@@ -798,7 +808,6 @@ test_that("plot.gips() works or abords for wrong arguments", {
 })
 
 test_that("plot.gips() works for books example", {
-  skip_if_not_installed("ggplot2")
   Z <- DAAG::oddbooks[, c(1, 2, 3)]
   Z$height <- Z$height / sqrt(2)
 
@@ -837,7 +846,7 @@ test_that("summary.gips() works", {
   likelihood_ratio_test_statistics <- 13*(determinant(project_matrix(S, custom_perm1))$modulus - determinant(S)$modulus)
   attributes(likelihood_ratio_test_statistics) <- NULL
   df_chisq <- p*(p+1)/2 - sum(get_structure_constants(custom_perm1)[["dim_omega"]])
-  likelihood_ratio_test_p_value <- 1 - pchisq(likelihood_ratio_test_statistics, df_chisq)
+  likelihood_ratio_test_p_value <- pchisq(likelihood_ratio_test_statistics, df_chisq, lower.tail = FALSE)
 
   my_sum <- structure(list(
     optimized = FALSE, start_permutation = structure(list(
@@ -853,10 +862,12 @@ test_that("summary.gips() works", {
     delta = 3, D_matrix = diag(6),
     n_parameters = 7,
     AIC = AIC(g1),
-    BIC = BIC(g1)
+    BIC = BIC(g1),
+    MLE_available = TRUE
   ), class = "summary.gips")
 
-  expect_identical(summary(g1), my_sum) # all in my_sum is calculated by the same functions the summary should use
+  # The determinant-based reference may differ from Cholesky by rounding.
+  expect_equal(summary(g1), my_sum)
 
   expect_output(
     print(summary(g1)),
@@ -898,8 +909,8 @@ test_that("summary.gips() works", {
   expect_true(is.null(summary(g4)[["log_posteriori_calls_after_best"]]))
   expect_s3_class(summary(g4)[["start_permutation"]], "gips_perm")
 
-  # proper log_posteriori_calls_after_best:
-  # g_fake started in (1,2,3) and then comed to (1,3,2), which had bigger log_posteriori value, but only a little bigger
+  # Reporting uses the saved first-best evaluation, including when different
+  # generators of the same group have slightly different computed log weights.
   g_fake <- structure(list(structure(list(c(1, 2, 3)), size = 3L, class = "gips_perm")), S = structure(c(
     1, 0, 0, 0, 1, 0, 0, 0, 1
   ), dim = c(3L, 3L)), number_of_observations = 10, delta = 3, D_matrix = structure(c(
@@ -919,6 +930,7 @@ test_that("summary.gips() works", {
     last_perm_log_posteriori = -16.0120977148862, iterations_performed = 2L,
     optimization_algorithm_used = "Metropolis_Hastings", post_probabilities = NULL,
     did_converge = NULL, best_perm_log_posteriori = -16.0120977148862,
+    number_of_log_posteriori_calls = 3, log_posteriori_calls_at_best = 1,
     optimization_time = structure(0.00564193725585938, class = "difftime", units = "secs"),
     whole_optimization_time = structure(0.00564193725585938, class = "difftime", units = "secs"),
     all_n0 = c(2, 3, 2)
@@ -928,6 +940,33 @@ test_that("summary.gips() works", {
     summary(g_fake)[["log_posteriori_calls_after_best"]],
     2
   )
+})
+
+test_that("single and multi-sample reports use saved evaluation counters", {
+  inputs <- list(
+    gips(diag(3), 20, was_mean_estimated = FALSE),
+    gips(list(diag(3), 2 * diag(3)), c(20, 25), was_mean_estimated = FALSE)
+  )
+  for (g in inputs) {
+    fit <- withr::with_seed(1, suppressMessages(find_MAP(g,
+      optimizer = "MH", max_iter = 2, show_progress_bar = FALSE
+    )))
+    # Isolate reporting: six history records must not override the counters.
+    info <- attr(fit, "optimization_info")
+    info$log_posteriori_values <- rep(info$log_posteriori_values, 3L)
+    info$number_of_log_posteriori_calls <- 4
+    info$log_posteriori_calls_at_best <- 2
+    attr(fit, "optimization_info") <- info
+
+    result <- summary(fit)
+    expect_equal(result$number_of_log_posteriori_calls, 4)
+    expect_equal(result$log_posteriori_calls_after_best, 2)
+    expect_output(print(result), "Posterior calculations during optimization:\n 4", fixed = TRUE)
+    expect_output(print(result), "Posterior calculations after first reaching the best value:\n 2", fixed = TRUE)
+    expect_output(print(fit), "a search using 4 posterior calculations", fixed = TRUE)
+    expect_output(print(fit, oneline = TRUE), "a search using 4 posterior calculations", fixed = TRUE)
+    expect_identical(attr(fit, "optimization_info"), info)
+  }
 })
 
 test_that("start_permutation_log_posteriori was calculated correctly", {
@@ -948,6 +987,144 @@ test_that("start_permutation_log_posteriori was calculated correctly", {
       attr(g_map, "D_matrix")
     )
   )
+})
+
+test_that("summary.gips() reports MLE availability from the fitted projection", {
+  S <- diag(c(1, 0))
+  g_identity <- gips(S, 10, was_mean_estimated = FALSE)
+  expect_silent(identity_result <- summary(g_identity))
+  expect_false(identity_result$MLE_available)
+  expect_equal(identity_result$AIC, Inf)
+  expect_equal(identity_result$BIC, Inf)
+  expect_output(print(identity_result), "cannot be computed numerically")
+
+  swap_result <- summary(gips(S, 10, perm = "(1,2)", was_mean_estimated = FALSE))
+  expect_true(swap_result$MLE_available)
+  expect_true(is.finite(swap_result$AIC))
+  expect_true(is.finite(swap_result$BIC))
+  expect_output(print(swap_result), "The MLE estimator based on the found permutation does exist")
+})
+
+test_that("summary.gips() calculates the LRT from both covariance determinants", {
+  g <- gips(diag(c(1, 3)), 10, perm = "(1,2)", was_mean_estimated = FALSE)
+  result <- summary(g)
+  # The projection is 2 * I: its determinant is 4, while det(S) = 3.
+  expected_statistic <- 10 * log(4 / 3)
+  expect_equal(result$likelihood_ratio_test_statistics, expected_statistic)
+  expect_equal(result$likelihood_ratio_test_p_value, 1 - pchisq(expected_statistic, 1))
+
+  identity_result <- summary(gips(diag(c(1, 3)), 10, was_mean_estimated = FALSE))
+  expect_equal(identity_result$likelihood_ratio_test_statistics, 0)
+  expect_null(identity_result$likelihood_ratio_test_p_value)
+})
+
+test_that("summary.gips() preserves very small positive LRT p-values", {
+  g <- gips(diag(c(1, 2, 3)), 300, perm = "(1,2,3)", was_mean_estimated = FALSE)
+  result <- summary(g)
+  # The projection is 2 * I, so the determinant ratio is 8 / 6 and df = 6 - 2 = 4.
+  expected_statistic <- 300 * log(4 / 3)
+  # The chi-squared distribution with 4 degrees of freedom has this exact upper tail.
+  expected_p_value <- exp(-expected_statistic / 2) * (1 + expected_statistic / 2)
+
+  expect_equal(result$likelihood_ratio_test_statistics, expected_statistic)
+  expect_gt(result$likelihood_ratio_test_p_value, 0)
+  expect_lt(result$likelihood_ratio_test_p_value, .Machine$double.eps)
+  expect_equal(result$likelihood_ratio_test_p_value / expected_p_value, 1, tolerance = 1e-12)
+})
+
+test_that("summary.gips() requires enough observations for the full-model LRT", {
+  for (was_mean_estimated in c(FALSE, TRUE)) {
+    n_boundary <- 3 + as.integer(was_mean_estimated)
+    g_below <- gips(
+      diag(c(1, 2, 3)), n_boundary - 1, perm = "(1,2,3)",
+      was_mean_estimated = was_mean_estimated
+    )
+    below <- summary(g_below)
+    expect_null(below$likelihood_ratio_test_statistics)
+    expect_null(below$likelihood_ratio_test_p_value)
+    # The symmetry-constrained model can still be fitted below the full-model threshold.
+    expect_true(is.finite(as.numeric(logLik(g_below))))
+
+    boundary <- summary(gips(
+      diag(c(1, 2, 3)), n_boundary, perm = "(1,2,3)",
+      was_mean_estimated = was_mean_estimated
+    ))
+    expected_statistic <- 3 * log(8 / 6)
+    expect_equal(boundary$likelihood_ratio_test_statistics, expected_statistic)
+    expect_equal(boundary$likelihood_ratio_test_p_value, 1 - pchisq(expected_statistic, 4))
+  }
+})
+
+test_that("summary.gips() applies the mean correction once at the identity boundary", {
+  result <- summary(gips(diag(c(1, 2, 3)), 4, was_mean_estimated = TRUE))
+  expect_equal(result$likelihood_ratio_test_statistics, 0)
+  expect_null(result$likelihood_ratio_test_p_value)
+})
+
+test_that("summary.gips() leaves the LRT unavailable when only the projection is PD", {
+  g <- gips(diag(c(1, 0)), 10, perm = "(1,2)", was_mean_estimated = FALSE)
+  result <- summary(g)
+  expect_null(result$likelihood_ratio_test_statistics)
+  expect_null(result$likelihood_ratio_test_p_value)
+  expect_output(
+    print(result),
+    "Likelihood-Ratio test cannot be performed: insufficient observations or S or its projection is not numerically positive definite.",
+    fixed = TRUE
+  )
+})
+
+test_that("summary.gips() handles a numerically non-PD projection", {
+  # Simulate numerical projection failure in a local copy, leaving the namespace intact.
+  local_summary <- summary.gips
+  environment(local_summary) <- list2env(
+    list(project_matrix = function(...) diag(c(1, 0))),
+    parent = environment(summary.gips)
+  )
+  g <- gips(diag(c(1, 3)), 10, perm = "(1,2)", was_mean_estimated = FALSE)
+  expect_silent(result <- local_summary(g))
+  expect_null(result$likelihood_ratio_test_statistics)
+  expect_null(result$likelihood_ratio_test_p_value)
+})
+
+test_that("get_n0_from_perm counts cycles and corrects for an estimated mean", {
+  perms <- list(
+    singleton = gips_perm("()", 1),
+    identity = gips_perm("()", 5),
+    full_cycle = gips_perm("(1,2,3,4,5,6)", 6),
+    mixed_with_fixed_points = gips_perm("(1,2,3)(4,5)", 7)
+  )
+  expected <- c(singleton = 1, identity = 5, full_cycle = 1,
+                mixed_with_fixed_points = 4)
+
+  for (name in names(perms)) {
+    for (was_mean_estimated in c(FALSE, TRUE)) {
+      expect_identical(
+        get_n0_from_perm(perms[[name]], was_mean_estimated),
+        unname(expected[name]) + as.integer(was_mean_estimated),
+        info = name
+      )
+    }
+  }
+})
+
+test_that("get_n0_from_perm agrees with the structure-constant formula", {
+  perms <- list(
+    gips_perm("(1,2,3,4,5)", 5),
+    gips_perm("(1,2,3)(4,5,6)", 6),
+    gips_perm("(1,2,3)(4,5,6,7,8,9)", 9),
+    gips_perm("(1,2)(3,4,5)(6,7,8,9)", 10)
+  )
+
+  for (perm in perms) {
+    constants <- get_structure_constants(perm)
+    reference <- max(constants$r * constants$d / constants$k)
+    for (was_mean_estimated in c(FALSE, TRUE)) {
+      expect_identical(
+        get_n0_from_perm(perm, was_mean_estimated),
+        reference + as.integer(was_mean_estimated)
+      )
+    }
+  }
 })
 
 test_that("summary.gips() returns proper n0 for estimated and unestimated mean", {
@@ -976,15 +1153,18 @@ test_that("print.summary.gips() will properly print BIC and AIC when n < n0", {
   p <- 6
   number_of_observations <- 2
   Z <- MASS::mvrnorm(number_of_observations, mu = mu, Sigma = sigma_matrix) # this place is random
-  S <- (t(Z) %*% Z) / number_of_observations # the theoretical mean is 0
+  S <- crossprod(Z) / number_of_observations # the theoretical mean is 0
   
   g <- gips(S, number_of_observations, perm = "()")
   expect_silent(my_sum <- summary.gips(g))
   expect_null(my_sum$AIC)
   expect_null(my_sum$BIC)
+  expect_false(my_sum$MLE_available)
+  expect_null(my_sum$likelihood_ratio_test_statistics)
+  expect_null(my_sum$likelihood_ratio_test_p_value)
   
-  expect_output(print(my_sum), "BIC:\n The number of observations is smaller than n0 for this permutation,\n so the gips model based on the found permutation does not exist.")
-  expect_output(print(my_sum), "AIC:\n The number of observations is smaller than n0 for this permutation,\n so the gips model based on the found permutation does not exist.")
+  expect_output(print(my_sum), "BIC:\n The sample-size requirement is not met for this permutation,\n so the covariance MLE is unavailable.")
+  expect_output(print(my_sum), "AIC:\n The sample-size requirement is not met for this permutation,\n so the covariance MLE is unavailable.")
 })
 
 
@@ -1001,7 +1181,7 @@ test_that("get_probabilities_from_gips() works", {
 
   expect_error(
     get_probabilities_from_gips(g),
-    "Did You forget to optimize `g`?"
+    "Did you forget to optimize `g`?"
   )
 
   g_map_no_prob <- find_MAP(g,
@@ -1068,7 +1248,7 @@ test_that("logLik.gips() works", {
 
   # ==================
   # Mean is (0,0,0,0)
-  U <- t(Z) %*% Z
+  U <- crossprod(Z)
   perm <- gips_perm("(12)(34)", 4)
   S <- project_matrix(U, perm) / n
 
@@ -1108,7 +1288,7 @@ test_that("logLik.gips() works", {
 
   # ==================
   # NUll:
-  U <- t(Z) %*% Z
+  U <- crossprod(Z)
   expect_warning(
     expect_equal(
       logLik(gips(U / n, 2, perm = perm)), NULL
@@ -1118,11 +1298,58 @@ test_that("logLik.gips() works", {
 
   # ==================
   # -Inf:
-  g <- gips(diag(0, 4), n)
+  g <- gips(diag(0, 4), n, D_matrix = diag(4))
   expect_warning(
     expect_equal(logLik(g), -Inf),
     class = "singular_matrix"
   )
+})
+
+test_that("logLik.gips() rejects indefinite projections with either determinant sign", {
+  for (diagonal in list(c(1, -1e-8), c(1, -1e-8, -1e-8))) {
+    # These matrices pass input PSD tolerance, but are not positive definite.
+    g <- gips(diag(diagonal), 10, was_mean_estimated = FALSE)
+    expect_warning(
+      expect_equal(logLik(g), -Inf),
+      "not numerically positive definite",
+      class = "singular_matrix"
+    )
+  }
+})
+
+test_that("logLik.gips() checks the projection rather than the original S", {
+  S <- diag(c(1, 0))
+  g_identity <- gips(S, 10, was_mean_estimated = FALSE)
+  expect_warning(
+    expect_equal(logLik(g_identity), -Inf),
+    class = "singular_matrix"
+  )
+
+  g_swap <- gips(S, 10, perm = "(1,2)", was_mean_estimated = FALSE)
+  # The swap projects S onto 0.5 * I, which is positive definite.
+  expected <- -10 * (log(2 * pi) + 1 + log(0.5))
+  expect_equal(as.numeric(logLik(g_swap)), expected)
+})
+
+test_that("logLik.gips() accepts positive definite matrices with a small eigenvalue", {
+  g <- gips(diag(c(1, 1e-12)), 10, was_mean_estimated = FALSE)
+  expected <- -10 / 2 * (2 * (log(2 * pi) + 1) + log(1e-12))
+  expect_equal(as.numeric(logLik(g)), expected)
+})
+
+test_that("logLik.gips() still enforces n0 for positive definite S", {
+  for (was_mean_estimated in c(FALSE, TRUE)) {
+    n0 <- 2 + as.integer(was_mean_estimated)
+    g_below <- gips(diag(2), n0 - 1, was_mean_estimated = was_mean_estimated)
+    expect_warning(
+      expect_null(logLik(g_below)),
+      class = "likelihood_does_not_exists"
+    )
+
+    g_boundary <- gips(diag(2), n0, was_mean_estimated = was_mean_estimated)
+    # The mean correction is applied once; the effective sample size is 2.
+    expect_equal(as.numeric(logLik(g_boundary)), -2 * (log(2 * pi) + 1))
+  }
 })
 
 test_that("AIC.gips() works", {
@@ -1137,14 +1364,14 @@ test_that("AIC.gips() works", {
   p <- ncol(Z) # 4
   n <- nrow(Z) # 5
 
-  g <- gips(t(Z) %*% Z / n, n, perm = "(12)(34)", was_mean_estimated = FALSE)
+  g <- gips(crossprod(Z) / n, n, perm = "(12)(34)", was_mean_estimated = FALSE)
 
   expect_equal(AIC(g), 82.5767946096694)
   expect_equal(BIC(g), 80.233422084274)
 
   # ==================
   # NUll
-  S <- t(Z) %*% Z / n
+  S <- crossprod(Z) / n
   g <- gips(S, 2)
   expect_warning(
     expect_equal(
@@ -1161,14 +1388,14 @@ test_that("AIC.gips() works", {
 
   # ==================
   # Inf
-  g <- gips(diag(0, 4), n)
+  g <- gips(diag(0, 4), n, D_matrix = diag(4))
   expect_warning(expect_equal(AIC(g), Inf), class = "singular_matrix")
   expect_warning(expect_equal(BIC(g), Inf), class = "singular_matrix")
 })
 
 test_that("as.character.gips() work", {
   A <- matrix(rnorm(4 * 4), nrow = 4)
-  S <- t(A) %*% A
+  S <- crossprod(A)
   g <- gips(S, 14, perm = "(123)")
   expect_equal(as.character(g), "(1,2,3)")
 })

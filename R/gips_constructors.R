@@ -10,12 +10,15 @@
 #'     single-sample use of `gips()`. For the optional multi-sample interface,
 #'     `S` can also be a list of covariance matrices; see the
 #'     **Multi-sample** section below.
+#'     Row and column names are optional. If both are supplied, they should
+#'     identify the same variables in the same order.
+#'
 #'     When `Z` is the observed data:
 #' * if one does not know the theoretical mean and has to
 #'     estimate it with the observed mean, use `S = cov(Z)`,
 #'     and leave parameter `was_mean_estimated = TRUE` as default;
 #' * if one knows the theoretical mean is 0, use
-#'     `S = (t(Z) %*% Z) / number_of_observations`, and set
+#'     `S = crossprod(Z) / number_of_observations`, and set
 #'     parameter `was_mean_estimated = FALSE`.
 #' @param number_of_observations A number of data points that `S` is based on.
 #'     For multi-sample input, use one value per matrix in `S`; see the
@@ -25,17 +28,18 @@
 #'     See the **Hyperparameters** section below.
 #'     For multi-sample input, it can also be a numeric vector with one value
 #'     per matrix in `S`; see the **Multi-sample** section below.
-#' @param D_matrix Symmetric, positive-definite matrix of the same size as `S`.
-#'     Hyper-parameter of a Bayesian model.
-#'     When `NULL`, the (hopefully) reasonable one is derived from the data.
-#'     For more details, see the **Hyperparameters** section below.
-#'     For multi-sample input, use a list of matrices; see the
-#'     **Multi-sample** section below.
+#' @param D_matrix Hyper-parameter of a Bayesian model. Either `NULL` (default),
+#'     a symmetric, positive-definite matrix of the same size as `S` for
+#'     single-sample input, or a list of such matrices (one per matrix in `S`)
+#'     for multi-sample input. List elements cannot be `NULL`.
+#'     When `NULL`, defaults are derived from the data separately for each sample.
+#'     For more details, see the **Hyperparameters** and **Multi-sample**
+#'     sections below.
 #' @param was_mean_estimated A boolean.
 #' * Set `TRUE` (default) when your `S` parameter is a result of
 #'     a [stats::cov()] function.
 #' * Set `FALSE` when your `S` parameter is a result of
-#'     a `(t(Z) %*% Z) / number_of_observations` calculation.
+#'     a `crossprod(Z) / number_of_observations` calculation.
 #' @param perm An optional permutation to be the base for the `gips` object.
 #'     It can be of a `gips_perm` or a `permutation` class, or anything
 #'     the function [permutations::permutation()] can handle.
@@ -52,29 +56,35 @@
 #' * [as.character.gips()]
 #'
 #' @section Hyperparameters:
-#' We encourage you to try `D_matrix = d * I`, where `I` is a `p` \eqn{\times}
+#' We encourage you to try `D_matrix = d * I`, where `I` is a `p` \eqn{\times}{by}
 #'     `p` identity matrix and `d > 0` for some different `d`.
-#' When `d` is small compared to the data (e.g., `d=0.1 * mean(diag(S))`),
-#'     bigger structures will be found.
-#' When `d` is big compared to the data (e.g., `d=100 * mean(diag(S))`),
-#'     the posterior distribution does not depend on the data.
+#' Smaller `d` favor models with more equality constraints and fewer
+#'     free covariance parameters. This tendency depends on the data and `delta`.
+#' For fixed dimension, sample size and `delta`, as `d` tends to infinity,
+#'     the posterior distribution over symmetry groups converges to a
+#'     distribution independent of `S`.
 #'
-#' Taking `D_matrix = d * I` is equivalent to setting `S <- S / d`.
+#' Using `S` with `D_matrix = d * I` gives the same results
+#' as using `S / d` with `D_matrix = I`,
+#' with the other parameters unchanged.
 #'
 #' The default for `D_matrix` is `D_matrix = d * I`, where
-#' `d = mean(diag(S))`, which is equivalent to modifying `S`
-#' so that the mean value on the diagonal is 1.
+#' `d = mean(diag(S))`. For group selection, this is equivalent to using
+#' `S / d` with `D_matrix = I`, so that the mean diagonal entry of `S / d` is 1.
 #'
-#' In the Bayesian model, the prior distribution for
-#' the covariance matrix is a generalized case of
-#' [Wishart distribution](https://en.wikipedia.org/wiki/Wishart_distribution).
+#' The Bayesian model uses a
+#' [Wishart-type prior](https://en.wikipedia.org/wiki/Wishart_distribution)
+#' on the precision matrix (the inverse covariance matrix).
+#'
+#' The hyperparameters affect symmetry selection. For a fixed permutation,
+#' [project_matrix()] does not use `delta` or `D_matrix`.
 #'
 #' For a brief introduction, see the **Bayesian model selection**
 #' section in `vignette("Theory", package = "gips")` or in its
-#' [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html)).
+#' [pkgdown page](https://przechoj.github.io/gips/articles/Theory.html).
 #'
 #' For analysis of the Hyperparameters influence, see **Section 3.2.**
-#' of "Learning permutation symmetries with gips in R"
+#' of "Learning Permutation Symmetry of a Gaussian Vector with gips in R"
 #' by `gips` developers Adam Chojecki, Paweł Morgen, and Bartosz Kołodziejek,
 #' Journal of Statistical Software; \doi{10.18637/jss.v112.i07}.
 #'
@@ -123,7 +133,7 @@
 #'     the `gips` object. To be more precise, the base object
 #'     for `gips` is a one-element list of a `gips_perm` object.
 #'
-#' @examplesIf rlang::is_installed("ggplot2") && rlang::is_installed("MASS")
+#' @examples
 #' require("MASS") # for mvrnorm()
 #'
 #' perm_size <- 5
@@ -159,7 +169,7 @@ gips <- function(S, number_of_observations, delta = 3, D_matrix = NULL,
     perm <- permutations::permutation(perm)
   }
 
-  if (is.list(S)) {
+  if (is.list(S) && !is.matrix(S)) {
     # Multi-sample path
     G <- length(S)
     
@@ -177,6 +187,9 @@ gips <- function(S, number_of_observations, delta = 3, D_matrix = NULL,
       delta = delta, D_matrices = D_matrix,
       was_mean_estimated = was_mean_estimated, perm = perm
     )
+    for (i in seq_along(S)) {
+      warn_if_S_names_differ(S[[i]], name = paste0("S[[", i, "]]"))
+    }
     delta <- checked_arguments[["delta"]]
     p <- ncol(S[[1]])
 
@@ -198,6 +211,7 @@ gips <- function(S, number_of_observations, delta = 3, D_matrix = NULL,
     delta = delta, D_matrix = D_matrix, was_mean_estimated = was_mean_estimated,
     perm = perm
   )
+  warn_if_S_names_differ(S)
 
   if (inherits(perm, "gips_perm")) {
     gips_perm_object <- perm # it is already a `gips_perm`
@@ -215,6 +229,20 @@ gips <- function(S, number_of_observations, delta = 3, D_matrix = NULL,
     delta = delta, D_matrix = D_matrix,
     was_mean_estimated = was_mean_estimated, optimization_info = NULL
   ))
+}
+
+
+warn_if_S_names_differ <- function(S, name = "S") {
+  row_names <- rownames(S)
+  column_names <- colnames(S)
+  if (!is.null(row_names) && !is.null(column_names) &&
+      !identical(row_names, column_names)) {
+    rlang::warn(c(
+      paste0("Row and column names differ in `", name, "`."),
+      "i" = "For a covariance matrix, both axes should describe the same variables in the same order."
+    ), class = "gips_mismatched_dimnames")
+  }
+  invisible(NULL)
 }
 
 
@@ -331,7 +359,7 @@ validate_gips <- function(g) {
     }
   )
 
-  if (is.list(S)) {
+  if (is.list(S) && !is.matrix(S)) {
     check_gips_mult_arguments(
       Ss = S, numbers_of_observations = number_of_observations,
       delta = delta, D_matrices = D_matrix,
@@ -464,7 +492,7 @@ check_number_of_observations <- function(number_of_observations,
   character(0)
 }
 
-check_S_matrix <- function(S) {
+check_S_matrix <- function(S, name = "S") {
   if (ncol(S) != nrow(S)) {
     return(list(
       abort_text = c(
@@ -476,6 +504,24 @@ check_S_matrix <- function(S) {
       ),
       additional_info = 0
     ))
+  }
+
+  if (is.list(S)) {
+    abort_text <- c(
+      "i" = "`S` matrix must be a numeric matrix.",
+      "x" = "You supplied a matrix with storage type `list`."
+    )
+    can_unlist <- length(S) > 0 && all(vapply(S, function(x) {
+      is.numeric(x) && !is.complex(x) && length(x) == 1 && is.finite(x)
+    }, FALSE))
+    if (can_unlist) {
+      abort_text <- c(abort_text, "i" = paste0(
+        "Each entry is a single number. Convert it with `", name,
+        " <- matrix(unlist(", name, "), nrow = nrow(", name,
+        "), dimnames = dimnames(", name, "))`."
+      ))
+    }
+    return(list(abort_text = abort_text, additional_info = as.integer(can_unlist)))
   }
 
   if (!is.numeric(S)) {
@@ -491,18 +537,44 @@ check_S_matrix <- function(S) {
     ))
   }
 
-  if (!all(abs(S - t(S)) < 0.000001)) {
+  if (nrow(S) < 2) {
+    return(list(
+      abort_text = c(
+        "i" = "Models in `gips` require at least two variables (p >= 2).",
+        "x" = paste0("You provided `S` with dimensions ", nrow(S), " x ", ncol(S), ".")
+      ),
+      additional_info = 0
+    ))
+  }
+
+  if (any(!is.finite(S))) {
+    return(list(
+      abort_text = c(
+        "i" = "`S` matrix must contain only finite values.",
+        "x" = "You provided `S` with `NA`, `NaN` or infinite values."
+      ),
+      additional_info = 0
+    ))
+  }
+
+  if (!all(S == t(S))) {
+    show_symmetrization_hint <- max(abs(S - t(S))) <= 1e-2
     return(list(
       abort_text = c(
         "i" = "`S` matrix must be a symmetric matrix.",
         "x" = "You provided `S` as a matrix, but a non-symmetric one.",
-        "i" = "Is your matrix approximately symmetric? Maybe try setting `S <- (S+t(S))/2`?"
+        if (show_symmetrization_hint) c(
+          "i" = paste0(
+            "If the asymmetry is due to numerical rounding, try `",
+            name, " <- (", name, " + t(", name, "))/2`."
+          )
+        )
       ),
-      additional_info = 1
+      additional_info = as.integer(show_symmetrization_hint)
     ))
   }
 
-  if (!is.positive.semi.definite.matrix(S, tolerance = 1e-06)) {
+  if (!is.positive.semi.definite.matrix(S)) {
     return(list(
       abort_text = c(
         "i" = "`S` matrix must be positive semi-definite matrix.",
@@ -544,6 +616,13 @@ check_delta <- function(delta) {
     ))
   }
 
+  if (!is.finite(delta)) {
+    return(c(
+      "i" = "`delta` must be finite.",
+      "x" = "You provided an infinite `delta`."
+    ))
+  }
+
   if (delta <= 1) {
     return(c(
       "i" = "`delta` must be strictly bigger than 1.",
@@ -562,6 +641,13 @@ check_D_matrix <- function(D_matrix, p) {
         "You provided `D_matrix` with type ",
         typeof(D_matrix), "."
       )
+    ))
+  }
+
+  if (!is.null(D_matrix) && !is.numeric(D_matrix)) {
+    return(c(
+      "i" = "`D_matrix` must be a numeric matrix.",
+      "x" = paste0("You provided `D_matrix` with type ", typeof(D_matrix), ".")
     ))
   }
 
@@ -593,6 +679,13 @@ check_D_matrix <- function(D_matrix, p) {
     ))
   }
 
+  if (anyNA(D_matrix)) {
+    return(c(
+      "i" = "`D_matrix` must not contain any `NA`s.",
+      "x" = "You provided `D_matrix` with `NA`s!"
+    ))
+  }
+
   if (any(is.infinite(D_matrix))) {
     return(c(
       "i" = "`D_matrix` must not contain any infinite values.",
@@ -600,14 +693,20 @@ check_D_matrix <- function(D_matrix, p) {
     ))
   }
   
-  if (!(is.null(D_matrix) || all(abs(D_matrix - t(D_matrix)) < 0.000001))) {
+  if (!(is.null(D_matrix) || all(D_matrix == t(D_matrix)))) {
+    show_symmetrization_hint <- max(abs(D_matrix - t(D_matrix))) <= 1e-2
     return(c(
-      "i" = "`D_matrix` must either be `NULL` or a symmetric matrix.",
+      "i" = paste0(
+        "`D_matrix` must either be `NULL` or a symmetric matrix.",
+        if (show_symmetrization_hint) {
+          " If the asymmetry is due to numerical rounding, try `D_matrix <- (D_matrix + t(D_matrix))/2`."
+        } else ""
+      ),
       "x" = "You provided `D_matrix` as a matrix, but a non-symmetric one."
     ))
   }
   
-  if (!(is.null(D_matrix) || is.positive.definite.matrix(D_matrix, tolerance = 1e-06))) {
+  if (!(is.null(D_matrix) || is.positive.definite.matrix(D_matrix))) {
     return(c(
       "i" = "`D_matrix` must either be `NULL` or a positive-definite matrix.",
       "x" = "You provided `D_matrix` as a matrix, but a non-positive-definite one."
@@ -691,7 +790,7 @@ abort_on_argument_problems <- function(abort_text, additional_info = 0) {
 
   abort_text <- c(
     abort_text,
-    ">" = "If You think You've found a bug in a package, please open an ISSUE on https://github.com/PrzeChoj/gips/issues"
+    ">" = "If you think you've found a bug in a package, please open an ISSUE on https://github.com/PrzeChoj/gips/issues"
   )
 
   rlang::abort(abort_text)
@@ -775,7 +874,7 @@ check_find_MAP_arguments <- function(S, number_of_observations, max_iter, start_
   }
 
   # For multi-sample (list S), the detailed validation was done in gips().
-  if (is.list(S)) {
+  if (is.list(S) && !is.matrix(S)) {
     abort_text <- character(0)
     abort_text <- c(abort_text, check_max_iter(max_iter))
     abort_text <- c(abort_text, check_logical_flag(was_mean_estimated, "was_mean_estimated"))
@@ -789,7 +888,7 @@ check_find_MAP_arguments <- function(S, number_of_observations, max_iter, start_
       rlang::abort(c("There was a problem identified with the provided arguments:",
         "i" = "For calculations of probabilities, all perms have to be available after the optimization process.",
         "x" = "You provided `return_probabilities == TRUE` and `save_all_perms == FALSE`!",
-        "i" = "Did You want to set `save_all_perms = TRUE`?"
+        "i" = "Did you want to set `save_all_perms = TRUE`?"
       ))
     }
     return(invisible(NULL))
@@ -815,8 +914,8 @@ check_find_MAP_arguments <- function(S, number_of_observations, max_iter, start_
     rlang::abort(c("There was a problem identified with the provided arguments:",
       "i" = "For calculations of probabilities, all perms have to be available after the optimization process.",
       "x" = "You provided `return_probabilities == TRUE` and `save_all_perms == FALSE`!",
-      "i" = "Did You want to set `save_all_perms = TRUE`?",
-      "i" = "Did You want to set `return_probabilities = FALSE`?",
+      "i" = "Did you want to set `save_all_perms = TRUE`?",
+      "i" = "Did you want to set `return_probabilities = FALSE`?",
       "!" = paste0(
         "Remember that setting `return_probabilities == TRUE` can be computationally costly",
         ifelse(show_progress_bar, " and second progress bar will be shown.", ".")
@@ -859,7 +958,7 @@ check_multi_S_list <- function(Ss) {
   }
 
   first_dim <- dim(Ss[[1]])
-  same_dimensions <- all(vapply(Ss, function(S) identical(dim(S), first_dim), logical(1)))
+  same_dimensions <- all(vapply(Ss, function(S) identical(dim(S), first_dim), FALSE))
   if (!same_dimensions) {
     rlang::abort(c(
       "There was a problem identified with the provided S argument:",
@@ -977,7 +1076,19 @@ check_multi_D_matrices <- function(D_matrices, Ss) {
   }
 
   unlist(
-    lapply(seq_len(G), function(i) check_D_matrix(D_matrices[[i]], ncol(Ss[[i]]))),
+    lapply(seq_len(G), function(i) {
+      if (is.null(D_matrices[[i]])) {
+        return(c(
+          "i" = "Each element of `D_matrix` must be a matrix.",
+          "x" = paste0("You provided `D_matrix[[", i, "]]` as `NULL`.")
+        ))
+      }
+      problems <- check_D_matrix(D_matrices[[i]], ncol(Ss[[i]]))
+      if (length(problems) > 0) {
+        problems[1] <- paste0("In `D_matrix[[", i, "]]`: ", problems[1])
+      }
+      problems
+    }),
     use.names = TRUE
   )
 }
@@ -994,7 +1105,11 @@ check_gips_mult_arguments <- function(Ss, numbers_of_observations, delta,
   additional_info <- 0
 
   for (i in seq_len(G)) {
-    S_check <- check_S_matrix(Ss[[i]])
+    S_name <- paste0("S[[", i, "]]")
+    S_check <- check_S_matrix(Ss[[i]], name = S_name)
+    if (length(S_check$abort_text) > 0) {
+      S_check$abort_text[1] <- paste0("In `", S_name, "`: ", S_check$abort_text[1])
+    }
     abort_text <- c(abort_text, S_check$abort_text)
     additional_info <- additional_info + S_check$additional_info
   }

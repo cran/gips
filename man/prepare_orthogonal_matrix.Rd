@@ -18,7 +18,7 @@ Required if \code{perm} is neither \code{gips_perm} nor \code{gips}.}
 }
 \value{
 A square matrix of size \code{perm_size} by \code{perm_size} with
-columns from vector elements \eqn{v_k^{(c)}} according to
+columns from vector elements \eqn{v_k^{(c)}}{v_k^(c)} according to
 \href{https://arxiv.org/abs/2004.03503}{Theorem 6 from references}.
 }
 \description{
@@ -28,7 +28,7 @@ Calculate the orthogonal matrix \code{U_Gamma} for decomposition in
 \details{
 Let \eqn{X} be a matrix invariant under the permutation \code{perm}.
 Let the permutations cyclic group for it be called Gamma:
-\eqn{\Gamma = <perm> = \{perm, perm^2, ...\}}.
+\eqn{\Gamma = <perm> = \{perm, perm^2, ...\}}{Gamma = <perm> = \{perm, perm^2, ...\}}.
 
 Then \eqn{U_\Gamma} is an orthogonal matrix that block-diagonalizes \eqn{X}.
 
@@ -50,7 +50,7 @@ U_Gamma <- prepare_orthogonal_matrix(gperm)
 number_of_observations <- 10
 X <- matrix(rnorm(5 * number_of_observations), number_of_observations, 5)
 S <- cov(X)
-X <- project_matrix(S, perm = gperm) # this matrix in invariant under gperm
+X <- project_matrix(S, perm = gperm) # this matrix is invariant under gperm
 
 block_decomposition <- t(U_Gamma) \%*\% X \%*\% U_Gamma
 round(block_decomposition, 5) # the non-zeros only on diagonal and [1,2] and [2,1]
